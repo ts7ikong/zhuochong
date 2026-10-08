@@ -50,7 +50,7 @@ public class PetPanel : Window
     private readonly GradientStop bgStop1 = new(), bgStop2 = new();
     private readonly GradientStop bdStop1 = new(), bdStop2 = new();
     private readonly Border chipWorked = new(), chipRemain = new();
-    private Theme? appliedTheme;
+    private string? appliedKey;
 
     /// <param name="petWindow">桌宠所在的主窗口, 开启"跟随宠物"时面板会贴在它旁边</param>
     public PetPanel(PluginSettings settings, Window? petWindow)
@@ -229,6 +229,7 @@ public class PetPanel : Window
 
         Apply(PickTheme(s, t));
         ApplyScale();
+        Opacity = Math.Max(0.2, Math.Min(settings.PanelOpacity / 100.0, 1));
         Follow(); // 兜底: 缩放倍率等变化不一定触发事件
 
         tTime.Text = now.ToString("HH:mm:ss");
@@ -260,14 +261,23 @@ public class PetPanel : Window
 
     private void Apply(Theme th)
     {
-        if (th == appliedTheme) return;
-        appliedTheme = th;
+        // 状态主题或自定义颜色变了才重新套用, 避免每秒重启发光动画
+        string key = $"{th.Accent1}|{settings.PanelColor}|{settings.RingColor}|{settings.GlowColor}";
+        if (key == appliedKey) return;
+        appliedKey = key;
 
-        bgStop1.Color = Col(th.Bg1); bgStop2.Color = Col(th.Bg2);
+        // 自定义颜色优先, 没设置(或无效)就用当前状态的配色
+        var bg1 = Custom(settings.PanelColor) ?? Col(th.Bg1);
+        var bg2 = Custom(settings.PanelColor) ?? Col(th.Bg2);
+        var ring1 = Custom(settings.RingColor) ?? Col(th.Accent1);
+        var ring2 = Custom(settings.RingColor) ?? Col(th.Accent2);
+        var glowColor = Custom(settings.GlowColor) ?? Col(th.Accent1);
+
+        bgStop1.Color = bg1; bgStop2.Color = bg2;
         bdStop1.Color = Col(th.Accent1); bdStop2.Color = Col(th.Accent2);
-        arcStop1.Color = Col(th.Accent1); arcStop2.Color = Col(th.Accent2);
-        glow.Color = Col(th.Accent1);
-        tTime.Foreground = new SolidColorBrush(Col(th.Accent1));
+        arcStop1.Color = ring1; arcStop2.Color = ring2;
+        glow.Color = glowColor;
+        tTime.Foreground = new SolidColorBrush(ring1);
         tDate.Foreground = new SolidColorBrush(Col(th.Sub));
         tPercentCap.Foreground = new SolidColorBrush(Col(th.Sub));
 
@@ -317,6 +327,8 @@ public class PetPanel : Window
         FontWeight = weight,
         Foreground = new SolidColorBrush(Col(color)),
     };
+
+    private static Color? Custom(string hex) => PluginSettings.TryParseColor(hex, out var c) ? c : null;
 
     private static Color Col(string hex) => (Color)ColorConverter.ConvertFromString(hex);
 }

@@ -16,6 +16,12 @@ public class PluginSettings
     public bool ShowPanel { get; set; } = true;
     /// <summary>面板大小百分比, 100 为默认</summary>
     public double PanelScale { get; set; } = 100;
+    /// <summary>面板整体不透明度百分比 20~100</summary>
+    public double PanelOpacity { get; set; } = 100;
+    /// <summary>自定义颜色 (#RRGGBB / #AARRGGBB), 空字符串表示跟随状态自动配色</summary>
+    public string PanelColor { get; set; } = "";
+    public string RingColor { get; set; } = "";
+    public string GlowColor { get; set; } = "";
     /// <summary>面板是否跟随宠物移动</summary>
     public bool FollowPet { get; set; } = true;
     /// <summary>面板位置, NaN 表示还没拖动过, 使用默认位置</summary>
@@ -34,6 +40,10 @@ public class PluginSettings
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
         ShowPanel = line.GetString("show_panel", "true") != "false";
         PanelScale = Math.Max(50, Math.Min(ParseDouble(line.GetString("panel_scale", "100"), 100), 300));
+        PanelOpacity = Math.Max(20, Math.Min(ParseDouble(line.GetString("panel_opacity", "100"), 100), 100));
+        PanelColor = ValidColor(line.GetString("panel_color", ""));
+        RingColor = ValidColor(line.GetString("ring_color", ""));
+        GlowColor = ValidColor(line.GetString("glow_color", ""));
         FollowPet = line.GetString("follow_pet", "true") != "false";
         PanelLeft = ParseDouble(line.GetString("panel_left", "NaN"), double.NaN);
         PanelTop = ParseDouble(line.GetString("panel_top", "NaN"), double.NaN);
@@ -48,9 +58,32 @@ public class PluginSettings
         line.SetString("pm_end", WorkSchedule.FormatTime(Schedule.PmEnd));
         line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("panel_scale", PanelScale.ToString(CultureInfo.InvariantCulture));
+        line.SetString("panel_opacity", PanelOpacity.ToString(CultureInfo.InvariantCulture));
+        line.SetString("panel_color", PanelColor);
+        line.SetString("ring_color", RingColor);
+        line.SetString("glow_color", GlowColor);
         line.SetString("follow_pet", FollowPet ? "true" : "false");
         line.SetString("panel_left", PanelLeft.ToString(CultureInfo.InvariantCulture));
         line.SetString("panel_top", PanelTop.ToString(CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>读存档时的容错: 颜色写坏了就当没设置</summary>
+    private static string ValidColor(string? s) => TryParseColor(s, out _) ? s!.Trim() : "";
+
+    /// <summary>解析 #RGB / #RRGGBB / #AARRGGBB, 空串返回 false</summary>
+    public static bool TryParseColor(string? s, out System.Windows.Media.Color color)
+    {
+        color = default;
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        s = s.Trim();
+        if (!s.StartsWith('#')) s = "#" + s;
+        if (s.Length is not (4 or 7 or 9)) return false;
+        try
+        {
+            color = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(s);
+            return true;
+        }
+        catch (Exception) { return false; } // ColorConverter 对非法输入可能抛 FormatException 或 NotSupportedException
     }
 
     private static double ParseDouble(string? s, double def) =>
