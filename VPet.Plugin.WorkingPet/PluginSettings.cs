@@ -29,7 +29,7 @@ public class PluginSettings
         s.MonthlySalary = ParseDouble(line.GetString("monthly_salary", "6000"), 6000);
         // 存档里的配置不合法时回退默认值, 避免除零/负数
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
-        ShowPanel = line.GetBool("show_panel", true);
+        ShowPanel = line.GetString("show_panel", "true") != "false";
         PanelLeft = ParseDouble(line.GetString("panel_left", "NaN"), double.NaN);
         PanelTop = ParseDouble(line.GetString("panel_top", "NaN"), double.NaN);
     }
@@ -42,11 +42,11 @@ public class PluginSettings
         line.SetString("pm_start", WorkSchedule.FormatTime(Schedule.PmStart));
         line.SetString("pm_end", WorkSchedule.FormatTime(Schedule.PmEnd));
         line.SetString("monthly_salary", Schedule.MonthlySalary.ToString(CultureInfo.InvariantCulture));
-        line.SetBool("show_panel", ShowPanel);
+        line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("panel_left", PanelLeft.ToString(CultureInfo.InvariantCulture));
         line.SetString("panel_top", PanelTop.ToString(CultureInfo.InvariantCulture));
     }
 
-    private static double ParseDouble(string s, double def) =>
+    private static double ParseDouble(string? s, double def) =>
         double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : def;
 }
