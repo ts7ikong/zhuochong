@@ -8,6 +8,7 @@ namespace VPet.Plugin.WorkingPet;
 public class SettingsWindow : Window
 {
     private readonly TextBox amStart = new(), amEnd = new(), pmStart = new(), pmEnd = new();
+    private readonly TextBox scale = new();
     private readonly CheckBox showPanel = new() { Content = "显示薪资面板" };
     private readonly CheckBox followPet = new() { Content = "面板跟随宠物移动" };
 
@@ -25,6 +26,7 @@ public class SettingsWindow : Window
         amEnd.Text = WorkSchedule.FormatTime(s.AmEnd);
         pmStart.Text = WorkSchedule.FormatTime(s.PmStart);
         pmEnd.Text = WorkSchedule.FormatTime(s.PmEnd);
+        scale.Text = settings.PanelScale.ToString("0", CultureInfo.InvariantCulture);
         showPanel.IsChecked = settings.ShowPanel;
         followPet.IsChecked = settings.FollowPet;
 
@@ -35,6 +37,7 @@ public class SettingsWindow : Window
         AddRow(grid, "上午下班 (HH:MM)", amEnd);
         AddRow(grid, "下午上班 (HH:MM)", pmStart);
         AddRow(grid, "下午下班 (HH:MM)", pmEnd);
+        AddRow(grid, "面板大小 (50-300 %)", scale);
         AddRow(grid, "", showPanel);
         AddRow(grid, "", followPet);
 
@@ -50,6 +53,12 @@ public class SettingsWindow : Window
                 MessageBox.Show(this, "时间格式不正确, 请填 HH:MM, 如 9:00", "WorkingPet");
                 return;
             }
+            if (!double.TryParse(scale.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var sc)
+                || sc < 50 || sc > 300)
+            {
+                MessageBox.Show(this, "面板大小请填 50 到 300 之间的数字", "WorkingPet");
+                return;
+            }
             n.AmStart = a1; n.AmEnd = a2; n.PmStart = p1; n.PmEnd = p2;
             if (!n.IsValid(out var err))
             {
@@ -60,6 +69,7 @@ public class SettingsWindow : Window
             settings.Schedule.AmEnd = n.AmEnd;
             settings.Schedule.PmStart = n.PmStart;
             settings.Schedule.PmEnd = n.PmEnd;
+            settings.PanelScale = sc;
             settings.ShowPanel = showPanel.IsChecked == true;
             settings.FollowPet = followPet.IsChecked == true;
             onSaved();

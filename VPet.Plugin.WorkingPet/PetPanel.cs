@@ -26,22 +26,24 @@ public class PetPanel : Window
     private static readonly Theme Before = new("#F01C2630", "#F0263340", "#90A4AE", "#B0BEC5", "#9FB0BA", false);
     private static readonly Theme Off = new("#F03A0F14", "#F05A1418", "#FF5252", "#FF9100", "#E8A0A0", true);
 
-    private const double RingSize = 132;
-    private const double RingThickness = 10;
+    private const double RingSize = 84;
+    private const double RingThickness = 7;
 
     private readonly PluginSettings settings;
     private readonly Window? petWindow;
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private readonly Border box = new();
-    private readonly DropShadowEffect glow = new() { ShadowDepth = 0, BlurRadius = 24, Opacity = 0.55 };
-    private readonly TextBlock tTime = Text(36, FontWeights.Bold, "#FFFFFF", "Consolas");
-    private readonly TextBlock tDate = Text(12, FontWeights.Normal, "#9FB4E8");
-    private readonly TextBlock tPercent = Text(30, FontWeights.Bold, "#FFFFFF", "Consolas");
-    private readonly TextBlock tPercentCap = Text(11, FontWeights.Normal, "#9FB4E8");
-    private readonly TextBlock tStatus = Text(15, FontWeights.SemiBold, "#FFFFFF");
-    private readonly TextBlock tWorked = Text(13, FontWeights.SemiBold, "#FFFFFF");
-    private readonly TextBlock tRemain = Text(13, FontWeights.SemiBold, "#FFFFFF");
+    private readonly Border host = new();
+    private double appliedScale = 1;
+    private readonly DropShadowEffect glow = new() { ShadowDepth = 0, BlurRadius = 14, Opacity = 0.55 };
+    private readonly TextBlock tTime = Text(22, FontWeights.Bold, "#FFFFFF", "Consolas");
+    private readonly TextBlock tDate = Text(10, FontWeights.Normal, "#9FB4E8");
+    private readonly TextBlock tPercent = Text(18, FontWeights.Bold, "#FFFFFF", "Consolas");
+    private readonly TextBlock tPercentCap = Text(9, FontWeights.Normal, "#9FB4E8");
+    private readonly TextBlock tStatus = Text(11, FontWeights.SemiBold, "#FFFFFF");
+    private readonly TextBlock tWorked = Text(11, FontWeights.SemiBold, "#FFFFFF");
+    private readonly TextBlock tRemain = Text(11, FontWeights.SemiBold, "#FFFFFF");
     private readonly Ellipse track = new();
     private readonly Path arc = new();
     private readonly GradientStop arcStop1 = new(), arcStop2 = new();
@@ -98,19 +100,20 @@ public class PetPanel : Window
         box.Background = new LinearGradientBrush(new GradientStopCollection { bgStop1, bgStop2 }, 45);
         box.BorderBrush = new LinearGradientBrush(new GradientStopCollection { bdStop1, bdStop2 }, 45);
         box.BorderThickness = new Thickness(1.5);
-        box.CornerRadius = new CornerRadius(22);
-        box.Padding = new Thickness(22, 16, 22, 18);
-        box.MinWidth = 230;
+        box.CornerRadius = new CornerRadius(16);
+        box.Padding = new Thickness(12, 8, 12, 10);
+        box.MinWidth = 140;
         box.Effect = glow;
         // 给阴影留出空间, 否则发光会被窗口边缘裁掉
-        var host = new Border { Padding = new Thickness(20), Child = box };
+        host.Padding = new Thickness(12);
+        host.Child = box;
         Content = host;
 
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var t in new[] { tTime, tDate, tStatus })
             t.HorizontalAlignment = HorizontalAlignment.Center;
-        tDate.Margin = new Thickness(0, 0, 0, 10);
-        tStatus.Margin = new Thickness(0, 10, 0, 10);
+        tDate.Visibility = Visibility.Collapsed; // 紧凑版不显示日期
+        tStatus.Margin = new Thickness(0, 6, 0, 6);
 
         stack.Children.Add(tTime);
         stack.Children.Add(tDate);
@@ -145,7 +148,7 @@ public class PetPanel : Window
         var center = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
         tPercent.HorizontalAlignment = HorizontalAlignment.Center;
         tPercentCap.HorizontalAlignment = HorizontalAlignment.Center;
-        tPercentCap.Text = "今日进度";
+        tPercentCap.Text = "进度";
         center.Children.Add(tPercent);
         center.Children.Add(tPercentCap);
         grid.Children.Add(center);
@@ -155,7 +158,7 @@ public class PetPanel : Window
     /// <summary>底部的小胶囊: 上面是说明, 下面是数值</summary>
     private static Border Chip(Border chip, string caption, TextBlock value)
     {
-        var cap = Text(11, FontWeights.Normal, "#AAB6D8");
+        var cap = Text(9, FontWeights.Normal, "#AAB6D8");
         cap.Text = caption;
         cap.HorizontalAlignment = HorizontalAlignment.Center;
         value.HorizontalAlignment = HorizontalAlignment.Center;
@@ -164,9 +167,9 @@ public class PetPanel : Window
         inner.Children.Add(value);
         chip.Child = inner;
         chip.Background = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
-        chip.CornerRadius = new CornerRadius(12);
-        chip.Padding = new Thickness(8, 6, 8, 6);
-        chip.Margin = new Thickness(3, 0, 3, 0);
+        chip.CornerRadius = new CornerRadius(9);
+        chip.Padding = new Thickness(5, 3, 5, 3);
+        chip.Margin = new Thickness(2, 0, 2, 0);
         return chip;
     }
 
@@ -181,7 +184,7 @@ public class PetPanel : Window
         double w = ActualWidth, h = ActualHeight;
         if (w <= 0 || h <= 0) return;
         var area = SystemParameters.WorkArea;
-        const double gap = -8; // 面板自带 20 的透明外边距, 略负一点让视觉上贴紧宠物
+        const double gap = -6; // 面板自带 12 的透明外边距, 略负一点让视觉上贴紧宠物
 
         double left = petWindow.Left + petWindow.ActualWidth + gap;
         if (left + w > area.Right) left = petWindow.Left - w - gap;
@@ -206,7 +209,7 @@ public class PetPanel : Window
             || settings.PanelLeft > SystemParameters.VirtualScreenWidth - 40
             || settings.PanelTop > SystemParameters.VirtualScreenHeight - 40)
         {
-            Left = SystemParameters.WorkArea.Right - 300;
+            Left = SystemParameters.WorkArea.Right - 200;
             Top = SystemParameters.WorkArea.Top + 20;
         }
         else
@@ -225,6 +228,7 @@ public class PetPanel : Window
         var t = now.TimeOfDay;
 
         Apply(PickTheme(s, t));
+        ApplyScale();
         Follow(); // 兜底: 缩放倍率等变化不一定触发事件
 
         tTime.Text = now.ToString("HH:mm:ss");
@@ -240,6 +244,15 @@ public class PetPanel : Window
         tStatus.Text = s.IsOffWork(t) ? "🚨 下班了！关电脑回家！"
             : s.IsWorkTime(t) ? (progress >= 0.75 ? "🔥 胜利在望，再坚持一下" : "💻 打工中...")
             : t < s.AmStart ? "☕ 还没上班" : "🍱 午休中，吃点好的";
+    }
+
+    /// <summary>按设置里的"面板大小"整体缩放, 缩放后窗口尺寸变化会触发 Follow 重新贴边</summary>
+    private void ApplyScale()
+    {
+        double k = Math.Max(0.5, Math.Min(settings.PanelScale / 100.0, 3));
+        if (Math.Abs(k - appliedScale) < 0.001) return;
+        appliedScale = k;
+        host.LayoutTransform = new ScaleTransform(k, k);
     }
 
     private static Theme PickTheme(WorkSchedule s, TimeSpan t) =>
