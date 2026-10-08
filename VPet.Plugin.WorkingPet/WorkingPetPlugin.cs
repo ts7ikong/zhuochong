@@ -7,14 +7,14 @@ namespace VPet.Plugin.WorkingPet;
 
 /// <summary>
 /// WorkingPet 插件入口: 把旧版 Python 桌宠的"打工人"功能移植到 VPet.
-/// 第 1 步: 实时薪资面板 + 下班提醒. 后续功能 (工作记录 / AI 周报日报 / 采集) 在此基础上扩展.
+/// 第 1 步: 下班倒计时面板 + 下班提醒. 后续功能 (工作记录 / AI 周报日报 / 采集) 在此基础上扩展.
 /// </summary>
 public class WorkingPetPlugin : MainPlugin
 {
     public override string PluginName => "WorkingPet";
 
     private readonly PluginSettings settings = new();
-    private SalaryPanel? panel;
+    private PetPanel? panel;
     private DispatcherTimer? reminderTimer;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
@@ -36,7 +36,7 @@ public class WorkingPetPlugin : MainPlugin
 
     public override void LoadDIY()
     {
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "薪资面板 开/关", () =>
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打工面板 开/关", () =>
         {
             settings.ShowPanel = !settings.ShowPanel;
             ApplyPanelVisibility();
@@ -70,7 +70,7 @@ public class WorkingPetPlugin : MainPlugin
         {
             if (panel == null)
             {
-                panel = new SalaryPanel(settings, Window.GetWindow(MW.Main));
+                panel = new PetPanel(settings, Window.GetWindow(MW.Main));
                 panel.ApplyPosition();
                 panel.Closed += (_, _) => panel = null;
             }
@@ -95,6 +95,6 @@ public class WorkingPetPlugin : MainPlugin
 
         // 到点下班 (启动时已过点则不再弹, 只在 5 分钟窗口内提醒)
         if (t >= s.PmEnd && t < s.PmEnd + TimeSpan.FromMinutes(5) && fired.Add(day + "off_work"))
-            MW.Main.SayRnd($"下班了！关电脑！回家！今天一共赚了 ¥{s.DailyEarning:N2}", true);
+            MW.Main.SayRnd("下班了！关电脑！回家！", true);
     }
 }

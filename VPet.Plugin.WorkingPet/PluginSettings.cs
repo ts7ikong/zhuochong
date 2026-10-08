@@ -28,7 +28,6 @@ public class PluginSettings
         if (WorkSchedule.TryParseTime(line.GetString("am_end", "12:00"), out t)) s.AmEnd = t;
         if (WorkSchedule.TryParseTime(line.GetString("pm_start", "13:00"), out t)) s.PmStart = t;
         if (WorkSchedule.TryParseTime(line.GetString("pm_end", "18:00"), out t)) s.PmEnd = t;
-        s.MonthlySalary = ParseDouble(line.GetString("monthly_salary", "6000"), 6000);
         // 存档里的配置不合法时回退默认值, 避免除零/负数
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
         ShowPanel = line.GetString("show_panel", "true") != "false";
@@ -44,7 +43,6 @@ public class PluginSettings
         line.SetString("am_end", WorkSchedule.FormatTime(Schedule.AmEnd));
         line.SetString("pm_start", WorkSchedule.FormatTime(Schedule.PmStart));
         line.SetString("pm_end", WorkSchedule.FormatTime(Schedule.PmEnd));
-        line.SetString("monthly_salary", Schedule.MonthlySalary.ToString(CultureInfo.InvariantCulture));
         line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("follow_pet", FollowPet ? "true" : "false");
         line.SetString("panel_left", PanelLeft.ToString(CultureInfo.InvariantCulture));
