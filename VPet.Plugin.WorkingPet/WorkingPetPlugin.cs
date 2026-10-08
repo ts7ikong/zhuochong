@@ -7,7 +7,7 @@ namespace VPet.Plugin.WorkingPet;
 
 /// <summary>
 /// WorkingPet 插件入口: 把旧版 Python 桌宠的"打工人"功能移植到 VPet.
-/// 第 1 步: 下班倒计时面板 + 下班提醒. 后续功能 (工作记录 / AI 周报日报 / 采集) 在此基础上扩展.
+/// 第 1 步: 下班倒计时面板 + 下班提醒. 第 2 步: 工作记录 + 工作日历. 后续 (AI 周报日报 / 采集) 在此基础上扩展.
 /// </summary>
 public class WorkingPetPlugin : MainPlugin
 {
@@ -16,8 +16,13 @@ public class WorkingPetPlugin : MainPlugin
     private readonly PluginSettings settings = new();
     private PetPanel? panel;
     private DispatcherTimer? reminderTimer;
+    private WorkLogStore? store;
+    private WorkLogWindow? logWindow;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
+
+    /// <summary>工作记录存储, 第一次用到时才读文件</summary>
+    private WorkLogStore Store => store ??= new WorkLogStore();
 
     public WorkingPetPlugin(IMainWindow mainwin) : base(mainwin) { }
 
@@ -41,6 +46,8 @@ public class WorkingPetPlugin : MainPlugin
             settings.ShowPanel = !settings.ShowPanel;
             ApplyPanelVisibility();
         });
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "记录工作", RecordWork);
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "工作日历", OpenCalendar);
         MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打工设置", Setting);
     }
 
@@ -52,6 +59,49 @@ public class WorkingPetPlugin : MainPlugin
             panel?.Refresh();
             fired.Clear(); // 改了时间后允许重新提醒
         });
+        win.Closed += (_, _) => MW.Windows.Remove(win);
+        MW.Windows.Add(win); // 登记后游戏退出时会统一关闭
+        win.Show();
+    }
+
+    /// <summary>用游戏自带的输入框快速记一条, 对应旧版悬浮输入框的"记录"</summary>
+    private void RecordWork()
+    {
+        MW.ShowInputBox("记录工作", "刚刚做了什么？", "", text =>
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            try
+            {
+                int n = Store.Add(text);
+                MW.Main.SayRnd($"已记录，今天第 {n} 条 ✓");
+            }
+            catch (Exception e)
+            {
+                MW.Main.SayRnd("记录失败：" + e.Message);
+            }
+        });
+    }
+
+    /// <summary>打开工作日历, 已打开则置前</summary>
+    private void OpenCalendar()
+    {
+        if (logWindow != null)
+        {
+            logWindow.Activate();
+            return;
+        }
+        try
+        {
+            logWindow = new WorkLogWindow(Store);
+        }
+        catch (Exception e)
+        {
+            MW.Main.SayRnd("打开工作日历失败：" + e.Message);
+            return;
+        }
+        var win = logWindow;
+        win.Closed += (_, _) => { logWindow = null; MW.Windows.Remove(win); };
+        MW.Windows.Add(win);
         win.Show();
     }
 
@@ -60,7 +110,7 @@ public class WorkingPetPlugin : MainPlugin
     public override void EndGame()
     {
         reminderTimer?.Stop();
-        MW.Dispatcher.Invoke(() => panel?.Close());
+        MW.Dispatcher.Invoke(() => { panel?.Close(); logWindow?.Close(); });
         panel = null;
     }
 
