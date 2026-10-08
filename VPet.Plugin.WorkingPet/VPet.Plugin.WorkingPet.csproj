@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>VPet.Plugin.WorkingPet</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VPet-Simulator.Windows.Interface\VPet-Simulator.Windows.Interface.csproj" />
+  </ItemGroup>
+  <!-- 构建后自动组装成可直接放进游戏 mod 目录的结构: bin\<配置>\mod\WorkingPet\{info.lps, plugin\*.dll} -->
+  <Target Name="PackMod" AfterTargets="Build">
+    <PropertyGroup>
+      <ModOut>$(OutDir)mod\WorkingPet\</ModOut>
+    </PropertyGroup>
+    <Copy SourceFiles="mod\info.lps" DestinationFolder="$(ModOut)" />
+    <Copy SourceFiles="$(OutDir)$(AssemblyName).dll" DestinationFolder="$(ModOut)plugin\" />
+  </Target>
+</Project>
