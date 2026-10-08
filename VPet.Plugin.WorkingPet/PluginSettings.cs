@@ -22,8 +22,13 @@ public class PluginSettings
     /// <summary>
     /// 到点下班时宠物做什么: play=玩耍(互动里的玩耍项目) / shutdown=假装逃跑(关机动画) / sleep=睡觉 / say=说话动画 / none=只弹气泡
     /// </summary>
-    public string OffWorkAction { get; set; } = "play";
-    public static readonly string[] OffWorkActions = { "play", "shutdown", "sleep", "say", "none" };
+    public string OffWorkAction { get; set; } = "run";
+    public static readonly string[] OffWorkActions = { "run", "play", "shutdown", "sleep", "say", "none" };
+    /// <summary>"run" 时: 放大倍数(相对当前大小) / 跑到中央用时(秒) / 到中央后停留多久自动回去(秒)</summary>
+    public double RunScale { get; set; } = 2.5;
+    public double RunSeconds { get; set; } = 3;
+    public double RunStay { get; set; } = 180;
+    public RunOptions Run => new(RunScale, RunSeconds, RunStay);
     /// <summary>"play" 时玩哪个项目, 留空 = 用第一个当前能玩的; 项目不可用会退回假装逃跑</summary>
     public string OffWorkPlay { get; set; } = "玩水";
     /// <summary>面板大小百分比, 100 为默认</summary>
@@ -52,8 +57,11 @@ public class PluginSettings
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
         ShowPanel = line.GetString("show_panel", "true") != "false";
         PanelScale = Math.Max(50, Math.Min(ParseDouble(line.GetString("panel_scale", "100"), 100), 300));
-        var act = line.GetString("offwork_action", "play");
-        OffWorkAction = OffWorkActions.Contains(act) ? act! : "play";
+        var act = line.GetString("offwork_action", "run");
+        OffWorkAction = OffWorkActions.Contains(act) ? act! : "run";
+        RunScale = Math.Max(1.2, Math.Min(ParseDouble(line.GetString("run_scale", "2.5"), 2.5), 6));
+        RunSeconds = Math.Max(1, Math.Min(ParseDouble(line.GetString("run_seconds", "3"), 3), 10));
+        RunStay = Math.Max(10, Math.Min(ParseDouble(line.GetString("run_stay", "180"), 180), 3600));
         var pre = line.GetString("pre_action", "think");
         PreAction = PreActions.Contains(pre) ? pre! : "think";
         OffWorkCountdown = line.GetString("offwork_countdown", "true") != "false";
@@ -77,6 +85,9 @@ public class PluginSettings
         line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("panel_scale", PanelScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("offwork_action", OffWorkAction);
+        line.SetString("run_scale", RunScale.ToString(CultureInfo.InvariantCulture));
+        line.SetString("run_seconds", RunSeconds.ToString(CultureInfo.InvariantCulture));
+        line.SetString("run_stay", RunStay.ToString(CultureInfo.InvariantCulture));
         line.SetString("pre_action", PreAction);
         line.SetString("offwork_countdown", OffWorkCountdown ? "true" : "false");
         line.SetString("offwork_play", OffWorkPlay);

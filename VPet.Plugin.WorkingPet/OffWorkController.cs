@@ -12,10 +12,10 @@ namespace VPet.Plugin.WorkingPet;
 public class OffWorkHooks
 {
     public Func<IReadOnlyList<string>> PlayNames { get; init; } = () => Array.Empty<string>();
-    /// <summary>参数: 下班动作, 玩耍项目名</summary>
-    public Action<string, string> PreviewFinal { get; init; } = (_, _) => { };
-    /// <summary>参数: 预备动作, 下班动作, 玩耍项目名</summary>
-    public Action<string, string, string> PreviewSequence { get; init; } = (_, _, _) => { };
+    /// <summary>参数: 下班动作, 玩耍项目名, 跑到中央的参数</summary>
+    public Action<string, string, RunOptions> PreviewFinal { get; init; } = (_, _, _) => { };
+    /// <summary>参数: 预备动作, 下班动作, 玩耍项目名, 跑到中央的参数</summary>
+    public Action<string, string, string, RunOptions> PreviewSequence { get; init; } = (_, _, _, _) => { };
 }
 
 /// <summary>
@@ -30,6 +30,8 @@ public class OffWorkController
     private readonly PluginSettings settings;
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private DispatcherTimer? previewTimer;
+    private DispatcherTimer? stayTimer;
+    private readonly RunToCenterEffect run;
 
     private string trackedDay = "";   // 当前跟踪的日期, 跨天时重置状态
     private string cancelledDay = ""; // 点了"今天加班"的日期
@@ -41,6 +43,7 @@ public class OffWorkController
     {
         this.mw = mw;
         this.settings = settings;
+        run = new RunToCenterEffect(mw);
     }
 
     public void Start()
@@ -53,12 +56,14 @@ public class OffWorkController
     {
         timer.Stop();
         previewTimer?.Stop();
+        stayTimer?.Stop();
+        run.Restore(); // 退出游戏时如果还大着, 立刻复原
     }
 
     public OffWorkHooks CreateHooks() => new()
     {
         PlayNames = AvailablePlayNames,
-        PreviewFinal = (action, play) => Final(action, play, FinalText),
+        PreviewFinal = (action, play, ro) => Final(action, play, FinalText, ro),
         PreviewSequence = PreviewSequence,
     };
 
@@ -85,7 +90,7 @@ public class OffWorkController
             if (remaining <= 0 && remaining > -300)
             {
                 finished = true;
-                Final(settings.OffWorkAction, settings.OffWorkPlay, FinalText);
+                Final(settings.OffWorkAction, settings.OffWorkPlay, FinalText, settings.Run);
             }
             return;
         }
@@ -105,13 +110,13 @@ public class OffWorkController
         else if (remaining > -300)
         {
             finished = true;
-            Final(settings.OffWorkAction, settings.OffWorkPlay, FinalText);
+            Final(settings.OffWorkAction, settings.OffWorkPlay, FinalText, settings.Run);
         }
     }
 
     // ── 预览 (立刻走一遍, 不影响真实日程) ─────────────────────────
 
-    private void PreviewSequence(string pre, string action, string play)
+    private void PreviewSequence(string pre, string action, string play, RunOptions ro)
     {
         previewTimer?.Stop();
         StartPre(pre);
@@ -130,7 +135,7 @@ public class OffWorkController
             }
             pt.Stop();
             previewTimer = null;
-            Final(action, play, FinalText);
+            Final(action, play, FinalText, ro);
         };
         pt.Start();
     }
@@ -176,7 +181,7 @@ public class OffWorkController
     }
 
     /// <summary>第二段 (到点): 气泡 + 动作. 玩耍项目不可用时退回"假装逃跑"</summary>
-    private void Final(string action, string playWork, string text)
+    private void Final(string action, string playWork, string text, RunOptions ro)
     {
         var main = mw.Main;
         // 预备动作还在播的话允许覆盖它; 否则宠物忙(拖拽/工作/睡觉)就只弹气泡
@@ -193,6 +198,10 @@ public class OffWorkController
 
         switch (action)
         {
+            case "run":
+                if (!StartRun(ro, text))
+                    main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
+                break;
             case "play":
                 if (!TryStartPlay(playWork))
                     main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
@@ -204,6 +213,42 @@ public class OffWorkController
                 main.DisplaySleep(true);
                 break;
         }
+    }
+
+    // ── 跑到屏幕中央并放大 ─────────────────────────────────────
+
+    private bool StartRun(RunOptions ro, string text)
+    {
+        if (run.IsActive) return true; // 上一次还没回去, 不重复开始
+        return run.Begin(ro.Scale, ro.Seconds, () =>
+        {
+            // 到达后循环一个说话表情: 宠物处于"非闲置"状态, 游戏不会随机让它走开
+            var g = mw.Core.Graph?.FindName(GraphType.Say);
+            if (g != null) PlayLooping(g);
+            mw.Main.Say(text, ReturnButton(ro));
+
+            stayTimer?.Stop();
+            stayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(10, ro.StaySeconds)) };
+            stayTimer.Tick += (_, _) => GoBack(ro);
+            stayTimer.Start();
+        });
+    }
+
+    private Button ReturnButton(RunOptions ro)
+    {
+        var b = new Button { Content = "知道啦，回去吧", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 6, 0, 0) };
+        b.Click += (_, _) => GoBack(ro);
+        return b;
+    }
+
+    /// <summary>缩小并跑回原来的位置 (点按钮或停留超时触发)</summary>
+    private void GoBack(RunOptions ro)
+    {
+        stayTimer?.Stop();
+        stayTimer = null;
+        if (!run.IsActive) return;
+        mw.Main.Say("好的，回去啦～");
+        run.Return(Math.Max(1, ro.Seconds * 0.7));
     }
 
     // ── 玩耍 (VPet「互动 → 玩耍」里的活动) ──────────────────────────
