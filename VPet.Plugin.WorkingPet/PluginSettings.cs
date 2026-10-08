@@ -14,6 +14,11 @@ public class PluginSettings
     public WorkSchedule Schedule { get; private set; } = new();
     /// <summary>是否显示薪资面板</summary>
     public bool ShowPanel { get; set; } = true;
+    /// <summary>
+    /// 到点下班时宠物做什么: shutdown=假装逃跑(播放关机动画) / sleep=睡觉 / say=说话动画 / none=只弹气泡
+    /// </summary>
+    public string OffWorkAction { get; set; } = "shutdown";
+    public static readonly string[] OffWorkActions = { "shutdown", "sleep", "say", "none" };
     /// <summary>面板大小百分比, 100 为默认</summary>
     public double PanelScale { get; set; } = 100;
     /// <summary>面板整体不透明度百分比 20~100</summary>
@@ -40,6 +45,8 @@ public class PluginSettings
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
         ShowPanel = line.GetString("show_panel", "true") != "false";
         PanelScale = Math.Max(50, Math.Min(ParseDouble(line.GetString("panel_scale", "100"), 100), 300));
+        var act = line.GetString("offwork_action", "shutdown");
+        OffWorkAction = OffWorkActions.Contains(act) ? act! : "shutdown";
         PanelOpacity = Math.Max(20, Math.Min(ParseDouble(line.GetString("panel_opacity", "100"), 100), 100));
         PanelColor = ValidColor(line.GetString("panel_color", ""));
         RingColor = ValidColor(line.GetString("ring_color", ""));
@@ -58,6 +65,7 @@ public class PluginSettings
         line.SetString("pm_end", WorkSchedule.FormatTime(Schedule.PmEnd));
         line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("panel_scale", PanelScale.ToString(CultureInfo.InvariantCulture));
+        line.SetString("offwork_action", OffWorkAction);
         line.SetString("panel_opacity", PanelOpacity.ToString(CultureInfo.InvariantCulture));
         line.SetString("panel_color", PanelColor);
         line.SetString("ring_color", RingColor);

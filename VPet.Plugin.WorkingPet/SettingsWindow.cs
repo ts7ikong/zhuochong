@@ -10,12 +10,14 @@ namespace VPet.Plugin.WorkingPet;
 public class SettingsWindow : Window
 {
     private readonly TextBox amStart = new(), amEnd = new(), pmStart = new(), pmEnd = new();
+    private static readonly string[] OffWorkLabels = { "假装逃跑（关机动画）", "睡觉", "说话动画", "只弹气泡" };
+    private readonly ComboBox offWork = new();
     private readonly TextBox scale = new(), opacity = new();
     private readonly ColorField panelColor = new(), ringColor = new(), glowColor = new();
     private readonly CheckBox showPanel = new() { Content = "显示打工面板" };
     private readonly CheckBox followPet = new() { Content = "面板跟随宠物移动" };
 
-    public SettingsWindow(PluginSettings settings, Action onSaved, Action? openAiSettings = null)
+    public SettingsWindow(PluginSettings settings, Action onSaved, Action? openAiSettings = null, Action<string>? previewOffWork = null)
     {
         Title = "打工设置";
         Width = 360;
@@ -30,6 +32,8 @@ public class SettingsWindow : Window
         pmStart.Text = WorkSchedule.FormatTime(s.PmStart);
         pmEnd.Text = WorkSchedule.FormatTime(s.PmEnd);
         scale.Text = settings.PanelScale.ToString("0", CultureInfo.InvariantCulture);
+        foreach (var l in OffWorkLabels) offWork.Items.Add(l);
+        offWork.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.OffWorkActions, settings.OffWorkAction));
         opacity.Text = settings.PanelOpacity.ToString("0", CultureInfo.InvariantCulture);
         panelColor.Value = settings.PanelColor;
         ringColor.Value = settings.RingColor;
@@ -44,6 +48,7 @@ public class SettingsWindow : Window
         AddRow(grid, "上午下班 (HH:MM)", amEnd);
         AddRow(grid, "下午上班 (HH:MM)", pmStart);
         AddRow(grid, "下午下班 (HH:MM)", pmEnd);
+        AddRow(grid, "到点下班时宠物", offWork);
         AddRow(grid, "面板大小 (50-300 %)", scale);
         AddRow(grid, "透明度 (20-100 %)", opacity);
         AddRow(grid, "面板颜色", panelColor);
@@ -94,6 +99,7 @@ public class SettingsWindow : Window
             settings.Schedule.AmEnd = n.AmEnd;
             settings.Schedule.PmStart = n.PmStart;
             settings.Schedule.PmEnd = n.PmEnd;
+            settings.OffWorkAction = PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)];
             settings.PanelScale = sc;
             settings.PanelOpacity = op;
             settings.PanelColor = panelColor.Value;
@@ -105,12 +111,17 @@ public class SettingsWindow : Window
             Close();
         };
 
+        var preview = new Button { Content = "预览下班动作", Margin = new Thickness(16, 0, 16, 6), Padding = new Thickness(0, 6, 0, 6) };
+        preview.Click += (_, _) => previewOffWork?.Invoke(PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)]);
+        preview.IsEnabled = previewOffWork != null;
+
         var ai = new Button { Content = "AI 设置（豆包 / 周报 / 钉钉）…", Margin = new Thickness(16, 0, 16, 0), Padding = new Thickness(0, 6, 0, 6) };
         ai.Click += (_, _) => openAiSettings?.Invoke();
         ai.IsEnabled = openAiSettings != null;
 
         var root = new StackPanel();
         root.Children.Add(grid);
+        root.Children.Add(preview);
         root.Children.Add(ai);
         root.Children.Add(new Border { Padding = new Thickness(16, 0, 16, 16), Child = save });
         Content = root;

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using VPet_Simulator.Core;
+using static VPet_Simulator.Core.GraphInfo;
 using VPet_Simulator.Windows.Interface;
 
 namespace VPet.Plugin.WorkingPet;
@@ -66,7 +67,7 @@ public class WorkingPetPlugin : MainPlugin
             ApplyPanelVisibility();
             panel?.Refresh();
             fired.Clear(); // 改了时间后允许重新提醒
-        }, () => ai?.OpenSettings());
+        }, () => ai?.OpenSettings(), action => PlayOffWork(action, "下班了！关电脑！回家！"));
         win.Closed += (_, _) => MW.Windows.Remove(win);
         MW.Windows.Add(win); // 登记后游戏退出时会统一关闭
         win.Show();
@@ -141,6 +142,32 @@ public class WorkingPetPlugin : MainPlugin
         }
     }
 
+    /// <summary>
+    /// 到点下班时让宠物用自己的动作提醒你. 复用 VPet 现有动画:
+    /// shutdown = "假装逃跑" (游戏里随机事件用的关机动画, 播完回到待机); sleep = 睡觉直到你点它; say = 说话表情.
+    /// 宠物正在被拖拽/工作/学习时不打断它, 只弹气泡.
+    /// </summary>
+    private void PlayOffWork(string action, string text)
+    {
+        var main = MW.Main;
+        if (action == "say")
+        {
+            main.SayRnd(text, true);
+            return;
+        }
+        main.Say(text); // 只弹气泡, 不带动画
+        if (!main.IsIdel) return;
+        switch (action)
+        {
+            case "shutdown":
+                main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
+                break;
+            case "sleep":
+                main.DisplaySleep(true);
+                break;
+        }
+    }
+
     private void CheckReminders()
     {
         var s = settings.Schedule;
@@ -154,7 +181,7 @@ public class WorkingPetPlugin : MainPlugin
 
         // 到点下班 (启动时已过点则不再弹, 只在 5 分钟窗口内提醒)
         if (t >= s.PmEnd && t < s.PmEnd + TimeSpan.FromMinutes(5) && fired.Add(day + "off_work"))
-            MW.Main.SayRnd("下班了！关电脑！回家！", true);
+            PlayOffWork(settings.OffWorkAction, "下班了！关电脑！回家！");
 
         // AI 相关提醒: 日报确认 / 周报
         ai?.CheckReminders(now);
