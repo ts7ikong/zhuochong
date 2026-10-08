@@ -39,13 +39,28 @@ public class RunToCenterEffect
         frame.Tick += (_, _) => Step();
     }
 
-    /// <summary>开始跑向屏幕中央并放大; 到达后调用 arrived. 条件不满足(找不到窗口等)返回 false</summary>
-    public bool Begin(double scale, double seconds, Action arrived)
+    private int frameCount;
+
+    /// <summary>
+    /// 开始跑向屏幕中央并放大; 到达后调用 arrived. 条件不满足(找不到窗口等)返回 false.
+    /// info 里写明成功时的关键数值 / 失败的原因, 供诊断.
+    /// </summary>
+    public bool Begin(double scale, double seconds, Action arrived, out string info)
     {
-        if (IsActive) return false;
+        if (IsActive)
+        {
+            info = "上一次的跑动还没复原 (IsActive=true), 本次不开始";
+            DebugLog.Write("Begin: " + info);
+            return false;
+        }
         win = Window.GetWindow(mw.Main);
         var grid = mw.PetGrid;
-        if (win == null || win.ActualWidth <= 0 || win.ActualHeight <= 0 || double.IsNaN(grid.Width)) return false;
+        if (win == null || win.ActualWidth <= 0 || win.ActualHeight <= 0 || double.IsNaN(grid.Width))
+        {
+            info = $"取不到窗口/尺寸: win={(win == null ? "null" : "ok")} 宽={win?.ActualWidth} 高={win?.ActualHeight} PetGrid宽={grid.Width}";
+            DebugLog.Write("Begin: " + info);
+            return false;
+        }
 
         var area = SystemParameters.WorkArea;
         origWidth = grid.Width;
@@ -54,9 +69,25 @@ public class RunToCenterEffect
         double k = Math.Max(1, Math.Min(scale, 0.85 * area.Height / win.ActualHeight));
         var target = new Point(area.Left + area.Width / 2, area.Top + area.Height / 2);
 
+        info = $"窗口 {win.ActualWidth:0}x{win.ActualHeight:0} 位置({win.Left:0},{win.Top:0}) PetGrid宽 {origWidth:0}→{origWidth * k:0} "
+             + $"倍数{k:0.00}(请求{scale:0.00}) 目标中心({target.X:0},{target.Y:0}) 工作区 {area.Width:0}x{area.Height:0}";
+        DebugLog.Write("Begin: " + info);
+
         IsActive = true;
-        PlayWalk(target.X - origCenter.X);
-        Animate(origWidth, origWidth * k, origCenter, target, seconds, arrived);
+        frameCount = 0;
+        try
+        {
+            PlayWalk(target.X - origCenter.X);
+            Animate(origWidth, origWidth * k, origCenter, target, seconds, arrived);
+        }
+        catch (Exception e)
+        {
+            // 开始阶段出错: 复原并报告, 不能让 IsActive 卡在 true
+            Restore();
+            info = "开始时出错: " + e.Message;
+            DebugLog.Write("Begin: " + e);
+            return false;
+        }
         return true;
     }
 
@@ -126,8 +157,11 @@ public class RunToCenterEffect
         if (win == null) { frame.Stop(); return; }
         double u = Math.Min(1, (DateTime.Now - startedAt).TotalSeconds / duration);
         double e = u * u * (3 - 2 * u); // 先加速后减速, 比匀速自然
-        Place(fromW + (toW - fromW) * e,
-              new Point(fromC.X + (toC.X - fromC.X) * e, fromC.Y + (toC.Y - fromC.Y) * e));
+        var w = fromW + (toW - fromW) * e;
+        var c = new Point(fromC.X + (toC.X - fromC.X) * e, fromC.Y + (toC.Y - fromC.Y) * e);
+        Place(w, c);
+        if (frameCount++ % 30 == 0 || u >= 1)
+            DebugLog.Write($"Step u={u:0.00} 目标宽={w:0} 窗口={win.ActualWidth:0}x{win.ActualHeight:0} 位置=({win.Left:0},{win.Top:0}) 期望中心=({c.X:0},{c.Y:0})");
         if (u < 1) return;
         frame.Stop();
         var done = onFinished;

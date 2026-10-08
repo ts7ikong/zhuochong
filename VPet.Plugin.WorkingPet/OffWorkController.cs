@@ -64,7 +64,7 @@ public class OffWorkController
     public OffWorkHooks CreateHooks() => new()
     {
         PlayNames = AvailablePlayNames,
-        PreviewFinal = (action, play, ro) => Final(action, play, FinalText, ro),
+        PreviewFinal = (action, play, ro) => { DebugLog.Write($"预览(只看下班动作) action={action}"); Final(action, play, FinalText, ro, diag: true); },
         PreviewSequence = PreviewSequence,
     };
 
@@ -132,6 +132,7 @@ public class OffWorkController
 
     private void PreviewSequence(string pre, string action, string play, RunOptions ro)
     {
+        DebugLog.Write($"预览(完整流程) pre={pre} action={action}");
         previewTimer?.Stop();
         StartPre(pre);
         int n = 3;
@@ -149,7 +150,7 @@ public class OffWorkController
             }
             pt.Stop();
             previewTimer = null;
-            Final(action, play, FinalText, ro);
+            Final(action, play, FinalText, ro, diag: true);
         };
         pt.Start();
     }
@@ -202,25 +203,28 @@ public class OffWorkController
     }
 
     /// <summary>第二段 (到点): 气泡 + 动作. 玩耍项目不可用时退回"假装逃跑"</summary>
-    private void Final(string action, string playWork, string text, RunOptions ro)
+    private void Final(string action, string playWork, string text, RunOptions ro, bool diag = false)
     {
         var main = mw.Main;
         // 预备动作还在播的话允许覆盖它; 否则宠物忙(拖拽/工作/睡觉)就只弹气泡
         bool canAct = CanAct(main);
         preActive = false;
 
+        DebugLog.Write($"Final: action={action} canAct={canAct} state={main.State} display={main.DisplayType.Type} press={main.isPress}");
+        if (!canAct && diag)
+            main.Say($"{text}\n[诊断] 宠物当前被判定为忙碌, 不会做动作: 状态={main.State} 动画类型={main.DisplayType.Type} 拖拽={main.isPress}");
         if (action == "say" && canAct)
         {
             main.SayRnd(text, true);
             return;
         }
-        main.Say(text);
+        if (canAct || !diag) main.Say(text);
         if (!canAct) return;
 
         switch (action)
         {
             case "run":
-                if (!StartRun(ro, text))
+                if (!StartRun(ro, text, diag))
                     main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
                 break;
             case "play":
@@ -238,10 +242,10 @@ public class OffWorkController
 
     // ── 跑到屏幕中央并放大 ─────────────────────────────────────
 
-    private bool StartRun(RunOptions ro, string text)
+    private bool StartRun(RunOptions ro, string text, bool diag)
     {
         if (run.IsActive) return true; // 上一次还没回去, 不重复开始
-        return run.Begin(ro.Scale, ro.Seconds, () =>
+        bool ok = run.Begin(ro.Scale, ro.Seconds, () =>
         {
             // 到达后循环一个说话表情: 宠物处于"非闲置"状态, 游戏不会随机让它走开
             var g = mw.Core.Graph?.FindName(GraphType.Say);
@@ -252,7 +256,11 @@ public class OffWorkController
             stayTimer = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher) { Interval = TimeSpan.FromSeconds(Math.Max(10, ro.StaySeconds)) };
             stayTimer.Tick += (_, _) => GoBack(ro);
             stayTimer.Start();
-        });
+        }, out var info);
+
+        // 预览时把诊断信息直接显示在气泡里, 方便对照看到的现象; 失败时总是说明原因
+        if (diag || !ok) mw.Main.Say((ok ? "[诊断] " : "[跑到中央失败, 改用逃跑动画] ") + info);
+        return ok;
     }
 
     private Button ReturnButton(RunOptions ro)
