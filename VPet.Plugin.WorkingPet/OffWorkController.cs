@@ -149,21 +149,30 @@ public class OffWorkController
         switch (pre)
         {
             case "think":
-                main.Display(GraphType.Think, AnimatType.A_Start, main.DisplayBLoopingForce);
-                preActive = true;
+                // "think" 在引擎里是通用动画(靠名字查找), 不是内置类型
+                preActive = PlayLooping("think");
                 break;
             case "say":
                 var g = mw.Core.Graph?.FindName(GraphType.Say);
-                if (g != null)
-                {
-                    main.Display(g, AnimatType.A_Start, main.DisplayBLoopingForce);
-                    preActive = true;
-                }
+                preActive = g != null && PlayLooping(g);
                 break;
             case "idle":
                 preActive = main.DisplayIdel();
                 break;
         }
+    }
+
+    /// <summary>
+    /// 按名字播放"开始 → 循环"动画, 一直循环到被下一个动画覆盖. 宠物形象里没有这个动画就返回 false
+    /// (不先检查的话, 找不到动画会反复触发回调)
+    /// </summary>
+    private bool PlayLooping(string name)
+    {
+        var core = mw.Core;
+        if (core.Graph == null || core.Save == null) return false;
+        if (core.Graph.FindGraph(name, AnimatType.A_Start, core.Save.Mode) == null) return false;
+        mw.Main.Display(name, AnimatType.A_Start, mw.Main.DisplayBLoopingForce);
+        return true;
     }
 
     /// <summary>第二段 (到点): 气泡 + 动作. 玩耍项目不可用时退回"假装逃跑"</summary>
