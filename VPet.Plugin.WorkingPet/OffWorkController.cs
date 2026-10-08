@@ -28,7 +28,7 @@ public class OffWorkController
 
     private readonly IMainWindow mw;
     private readonly PluginSettings settings;
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private readonly DispatcherTimer timer;
     private DispatcherTimer? previewTimer;
     private DispatcherTimer? stayTimer;
     private readonly RunToCenterEffect run;
@@ -44,6 +44,7 @@ public class OffWorkController
         this.mw = mw;
         this.settings = settings;
         run = new RunToCenterEffect(mw);
+        timer = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher) { Interval = TimeSpan.FromMilliseconds(250) };
     }
 
     public void Start()
@@ -70,6 +71,19 @@ public class OffWorkController
     // ── 真实日程 ─────────────────────────────────────────────
 
     private void Tick()
+    {
+        try
+        {
+            TickCore();
+        }
+        catch (Exception e)
+        {
+            finished = true; // 出错就不要每 250 毫秒重复报错
+            mw.Main.Say("下班提醒出错了：" + e.Message);
+        }
+    }
+
+    private void TickCore()
     {
         var now = DateTime.Now;
         string day = WorkLogStore.DayKey(now);
@@ -123,7 +137,7 @@ public class OffWorkController
         int n = 3;
         ShowCount(n, preview: true);
 
-        var pt = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        var pt = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher) { Interval = TimeSpan.FromSeconds(1) };
         previewTimer = pt;
         pt.Tick += (_, _) =>
         {
@@ -142,9 +156,16 @@ public class OffWorkController
 
     // ── 两段动作 ─────────────────────────────────────────────
 
-    /// <summary>宠物当前能不能被打断去做动作: 没被拖拽、没在睡觉/旅行/工作中</summary>
+    /// <summary>
+    /// 宠物当前能不能被打断去做动作. 待机/走路/说话这类随机动作都可以打断,
+    /// 只有 被你拖着/举起、工作或学习中、旅行中 才不打断 (只弹气泡).
+    /// (之前用 IsIdel 太严格: 宠物只要正在做待机或走路动画就会被当成忙, 动作整个被跳过)
+    /// </summary>
     private bool CanAct(VPet_Simulator.Core.Main main) =>
-        main.IsIdel && !main.isPress && main.State != VPet_Simulator.Core.Main.WorkingState.Work;
+        !main.isPress
+        && main.State != VPet_Simulator.Core.Main.WorkingState.Work
+        && main.State != VPet_Simulator.Core.Main.WorkingState.Travel
+        && !main.DisplayType.Type.ToString().StartsWith("Raised");
 
     /// <summary>第一段 (倒数期间): 只播动画, 不弹气泡, 气泡留给倒数数字</summary>
     private void StartPre(string pre)
@@ -185,7 +206,7 @@ public class OffWorkController
     {
         var main = mw.Main;
         // 预备动作还在播的话允许覆盖它; 否则宠物忙(拖拽/工作/睡觉)就只弹气泡
-        bool canAct = (preActive && !main.isPress && main.State != VPet_Simulator.Core.Main.WorkingState.Work) || CanAct(main);
+        bool canAct = CanAct(main);
         preActive = false;
 
         if (action == "say" && canAct)
@@ -228,7 +249,7 @@ public class OffWorkController
             mw.Main.Say(text, ReturnButton(ro));
 
             stayTimer?.Stop();
-            stayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Math.Max(10, ro.StaySeconds)) };
+            stayTimer = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher) { Interval = TimeSpan.FromSeconds(Math.Max(10, ro.StaySeconds)) };
             stayTimer.Tick += (_, _) => GoBack(ro);
             stayTimer.Start();
         });
@@ -247,8 +268,8 @@ public class OffWorkController
         stayTimer?.Stop();
         stayTimer = null;
         if (!run.IsActive) return;
-        mw.Main.Say("好的，回去啦～");
-        run.Return(Math.Max(1, ro.Seconds * 0.7));
+        mw.Main.Say(ro.SleepAfter ? "好的，回去睡觉啦～ 😴" : "好的，回去啦～");
+        run.Return(Math.Max(1, ro.Seconds * 0.7), ro.SleepAfter ? () => mw.Main.DisplaySleep(true) : null);
     }
 
     // ── 玩耍 (VPet「互动 → 玩耍」里的活动) ──────────────────────────

@@ -14,6 +14,7 @@ public class SettingsWindow : Window
     private static readonly string[] PreLabels = { "思考", "说话表情", "随机待机动作", "无（只倒数）" };
     private readonly ComboBox offWork = new(), preAction = new(), playWork = new();
     private readonly TextBox runScale = new(), runSeconds = new(), runStay = new();
+    private readonly CheckBox sleepAfter = new() { Content = "跑回去之后直接睡觉" };
     private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
     private readonly TextBox scale = new(), opacity = new();
     private readonly ColorField panelColor = new(), ringColor = new(), glowColor = new();
@@ -39,6 +40,7 @@ public class SettingsWindow : Window
         foreach (var l in PreLabels) preAction.Items.Add(l);
         preAction.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.PreActions, settings.PreAction));
         countdown.IsChecked = settings.OffWorkCountdown;
+        sleepAfter.IsChecked = settings.SleepAfterRun;
         runScale.Text = settings.RunScale.ToString("0.0#", CultureInfo.InvariantCulture);
         runSeconds.Text = settings.RunSeconds.ToString("0.0#", CultureInfo.InvariantCulture);
         runStay.Text = settings.RunStay.ToString("0", CultureInfo.InvariantCulture);
@@ -67,6 +69,7 @@ public class SettingsWindow : Window
         AddRow(grid, "跑到中央·放大倍数", runScale);
         AddRow(grid, "跑到中央·用时(秒)", runSeconds);
         AddRow(grid, "跑到中央·停留(秒)", runStay);
+        AddRow(grid, "", sleepAfter);
         AddRow(grid, "面板大小 (50-300 %)", scale);
         AddRow(grid, "透明度 (20-100 %)", opacity);
         AddRow(grid, "面板颜色", panelColor);
@@ -86,7 +89,7 @@ public class SettingsWindow : Window
                 MessageBox.Show(this, "放大倍数请填 1.2-6，用时 1-10 秒，停留 10-3600 秒", "WorkingPet");
                 return false;
             }
-            ro = new RunOptions(sc, sec, stay);
+            ro = new RunOptions(sc, sec, stay, sleepAfter.IsChecked == true);
             return true;
         }
 
@@ -140,6 +143,7 @@ public class SettingsWindow : Window
             settings.RunScale = ro.Scale;
             settings.RunSeconds = ro.Seconds;
             settings.RunStay = ro.StaySeconds;
+            settings.SleepAfterRun = ro.SleepAfter;
             settings.PanelScale = sc;
             settings.PanelOpacity = op;
             settings.PanelColor = panelColor.Value;

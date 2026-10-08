@@ -7,7 +7,7 @@ using static VPet_Simulator.Core.GraphInfo;
 namespace VPet.Plugin.WorkingPet;
 
 /// <summary>跑到屏幕中央并放大的参数</summary>
-public readonly record struct RunOptions(double Scale, double Seconds, double StaySeconds);
+public readonly record struct RunOptions(double Scale, double Seconds, double StaySeconds, bool SleepAfter);
 
 /// <summary>
 /// 宠物边跑边放大地移动到屏幕中央, 再按原样跑回去.
@@ -17,7 +17,7 @@ public readonly record struct RunOptions(double Scale, double Seconds, double St
 public class RunToCenterEffect
 {
     private readonly IMainWindow mw;
-    private readonly DispatcherTimer frame = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private readonly DispatcherTimer frame;
 
     private Window? win;
     private double origWidth;   // 开始前 PetGrid 宽度 (= 500 × 缩放)
@@ -34,6 +34,8 @@ public class RunToCenterEffect
     public RunToCenterEffect(IMainWindow mw)
     {
         this.mw = mw;
+        // 显式绑定 UI 线程的 Dispatcher (插件可能在非 UI 线程里创建, 默认绑定会让动画永远不动)
+        frame = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher) { Interval = TimeSpan.FromMilliseconds(16) };
         frame.Tick += (_, _) => Step();
     }
 
@@ -59,11 +61,12 @@ public class RunToCenterEffect
     }
 
     /// <summary>缩小并跑回原来的位置, 结束后恢复待机</summary>
-    public void Return(double seconds, Action? finished = null)
+    /// <param name="then">跑回去之后做什么; 不传就恢复待机</param>
+    public void Return(double seconds, Action? then = null)
     {
         if (!IsActive || win == null)
         {
-            finished?.Invoke();
+            then?.Invoke();
             return;
         }
         frame.Stop();
@@ -72,8 +75,8 @@ public class RunToCenterEffect
         Animate(mw.PetGrid.Width, origWidth, current, origCenter, seconds, () =>
         {
             Restore();
-            mw.Main.DisplayToNomal();
-            finished?.Invoke();
+            if (then != null) then();
+            else mw.Main.DisplayToNomal();
         });
     }
 
@@ -105,6 +108,20 @@ public class RunToCenterEffect
     }
 
     private void Step()
+    {
+        try
+        {
+            StepCore();
+        }
+        catch (Exception e)
+        {
+            // 动画出错时先复原, 不能让宠物卡在放大状态
+            Restore();
+            mw.Main.Say("跑动画时出错了：" + e.Message);
+        }
+    }
+
+    private void StepCore()
     {
         if (win == null) { frame.Stop(); return; }
         double u = Math.Min(1, (DateTime.Now - startedAt).TotalSeconds / duration);

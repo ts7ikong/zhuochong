@@ -14,12 +14,17 @@ public class WindowTitleSampler
     private static readonly string[] SkipKeywords = { "VPet", "WorkingPet", "桌宠", "虚拟桌宠", "Program Manager" };
 
     private readonly Func<WorkSchedule> schedule;
-    private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMinutes(5) };
+    private readonly DispatcherTimer timer;
     private readonly List<(string Time, string Title)> items = new();
     private readonly object gate = new();
     private string day = "";
 
-    public WindowTitleSampler(Func<WorkSchedule> schedule) => this.schedule = schedule;
+    public WindowTitleSampler(Func<WorkSchedule> schedule, System.Windows.Threading.Dispatcher dispatcher)
+    {
+        this.schedule = schedule;
+        // 显式绑定 UI 线程的 Dispatcher: 插件可能在非 UI 线程里被创建, 默认绑定会让定时器永远不触发
+        timer = new DispatcherTimer(DispatcherPriority.Normal, dispatcher) { Interval = TimeSpan.FromMinutes(5) };
+    }
 
     public void Start()
     {

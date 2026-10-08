@@ -27,7 +27,7 @@ public class AiFeatures
         this.mw = mw;
         this.settings = settings;
         this.getStore = getStore;
-        sampler = new WindowTitleSampler(() => settings.Schedule);
+        sampler = new WindowTitleSampler(() => settings.Schedule, mw.Dispatcher);
     }
 
     public void Start() => sampler.Start();

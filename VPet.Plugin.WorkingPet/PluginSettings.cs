@@ -28,7 +28,9 @@ public class PluginSettings
     public double RunScale { get; set; } = 2.5;
     public double RunSeconds { get; set; } = 3;
     public double RunStay { get; set; } = 180;
-    public RunOptions Run => new(RunScale, RunSeconds, RunStay);
+    /// <summary>跑回原位之后直接睡觉 (否则恢复待机)</summary>
+    public bool SleepAfterRun { get; set; } = true;
+    public RunOptions Run => new(RunScale, RunSeconds, RunStay, SleepAfterRun);
     /// <summary>"play" 时玩哪个项目, 留空 = 用第一个当前能玩的; 项目不可用会退回假装逃跑</summary>
     public string OffWorkPlay { get; set; } = "玩水";
     /// <summary>面板大小百分比, 100 为默认</summary>
@@ -59,6 +61,7 @@ public class PluginSettings
         PanelScale = Math.Max(50, Math.Min(ParseDouble(line.GetString("panel_scale", "100"), 100), 300));
         var act = line.GetString("offwork_action", "run");
         OffWorkAction = OffWorkActions.Contains(act) ? act! : "run";
+        SleepAfterRun = line.GetString("sleep_after_run", "true") != "false";
         RunScale = Math.Max(1.2, Math.Min(ParseDouble(line.GetString("run_scale", "2.5"), 2.5), 6));
         RunSeconds = Math.Max(1, Math.Min(ParseDouble(line.GetString("run_seconds", "3"), 3), 10));
         RunStay = Math.Max(10, Math.Min(ParseDouble(line.GetString("run_stay", "180"), 180), 3600));
@@ -85,6 +88,7 @@ public class PluginSettings
         line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("panel_scale", PanelScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("offwork_action", OffWorkAction);
+        line.SetString("sleep_after_run", SleepAfterRun ? "true" : "false");
         line.SetString("run_scale", RunScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("run_seconds", RunSeconds.ToString(CultureInfo.InvariantCulture));
         line.SetString("run_stay", RunStay.ToString(CultureInfo.InvariantCulture));
