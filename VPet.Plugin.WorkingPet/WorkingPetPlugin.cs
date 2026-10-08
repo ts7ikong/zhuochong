@@ -18,6 +18,7 @@ public class WorkingPetPlugin : MainPlugin
     private DispatcherTimer? reminderTimer;
     private WorkLogStore? store;
     private WorkLogWindow? logWindow;
+    private AiFeatures? ai;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
 
@@ -29,6 +30,7 @@ public class WorkingPetPlugin : MainPlugin
     public override void GameLoaded()
     {
         settings.Load(MW.GameSavesData.Data);
+        ai = new AiFeatures(MW, settings, () => Store);
         MW.Dispatcher.Invoke(() =>
         {
             ApplyPanelVisibility();
@@ -36,6 +38,7 @@ public class WorkingPetPlugin : MainPlugin
             reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
             reminderTimer.Tick += (_, _) => CheckReminders();
             reminderTimer.Start();
+            ai.Start();
         });
     }
 
@@ -48,6 +51,11 @@ public class WorkingPetPlugin : MainPlugin
         });
         MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "记录工作", RecordWork);
         MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "工作日历", OpenCalendar);
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "AI对话", () => ai?.Chat());
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "生成周报", () => ai?.GenerateWeekly());
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "预览日报", () => ai?.DailyConfirm());
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打开钉钉", () => ai?.LaunchDingTalk());
+        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "AI设置", () => ai?.OpenSettings());
         MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打工设置", Setting);
     }
 
@@ -58,7 +66,7 @@ public class WorkingPetPlugin : MainPlugin
             ApplyPanelVisibility();
             panel?.Refresh();
             fired.Clear(); // 改了时间后允许重新提醒
-        });
+        }, () => ai?.OpenSettings());
         win.Closed += (_, _) => MW.Windows.Remove(win);
         MW.Windows.Add(win); // 登记后游戏退出时会统一关闭
         win.Show();
@@ -110,6 +118,7 @@ public class WorkingPetPlugin : MainPlugin
     public override void EndGame()
     {
         reminderTimer?.Stop();
+        ai?.Stop();
         MW.Dispatcher.Invoke(() => { panel?.Close(); logWindow?.Close(); });
         panel = null;
     }
@@ -139,12 +148,15 @@ public class WorkingPetPlugin : MainPlugin
         var t = now.TimeOfDay;
         string day = now.ToString("yyyyMMdd");
 
-        // 下班前 10 分钟
-        if (t >= s.PmEnd - TimeSpan.FromMinutes(10) && t < s.PmEnd && fired.Add(day + "end_soon"))
+        // 下班前 10 分钟 (开了日报确认时由日报弹窗接管这个时间点, 避免两条气泡互相覆盖)
+        if (ai?.Config.DailyConfirm != true && t >= s.PmEnd - TimeSpan.FromMinutes(10) && t < s.PmEnd && fired.Add(day + "end_soon"))
             MW.Main.SayRnd($"还有 {Math.Max(1, (int)Math.Ceiling(s.SecondsToOffWork(t) / 60))} 分钟下班，快收尾了！", true);
 
         // 到点下班 (启动时已过点则不再弹, 只在 5 分钟窗口内提醒)
         if (t >= s.PmEnd && t < s.PmEnd + TimeSpan.FromMinutes(5) && fired.Add(day + "off_work"))
             MW.Main.SayRnd("下班了！关电脑！回家！", true);
+
+        // AI 相关提醒: 日报确认 / 周报
+        ai?.CheckReminders(now);
     }
 }

@@ -15,7 +15,7 @@ public class SettingsWindow : Window
     private readonly CheckBox showPanel = new() { Content = "显示打工面板" };
     private readonly CheckBox followPet = new() { Content = "面板跟随宠物移动" };
 
-    public SettingsWindow(PluginSettings settings, Action onSaved)
+    public SettingsWindow(PluginSettings settings, Action onSaved, Action? openAiSettings = null)
     {
         Title = "打工设置";
         Width = 360;
@@ -105,13 +105,18 @@ public class SettingsWindow : Window
             Close();
         };
 
+        var ai = new Button { Content = "AI 设置（豆包 / 周报 / 钉钉）…", Margin = new Thickness(16, 0, 16, 0), Padding = new Thickness(0, 6, 0, 6) };
+        ai.Click += (_, _) => openAiSettings?.Invoke();
+        ai.IsEnabled = openAiSettings != null;
+
         var root = new StackPanel();
         root.Children.Add(grid);
+        root.Children.Add(ai);
         root.Children.Add(new Border { Padding = new Thickness(16, 0, 16, 16), Child = save });
         Content = root;
     }
 
-    private static void AddRow(Grid grid, string label, UIElement input)
+    internal static void AddRow(Grid grid, string label, UIElement input)
     {
         int row = grid.RowDefinitions.Count;
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
