@@ -10,14 +10,16 @@ namespace VPet.Plugin.WorkingPet;
 public class SettingsWindow : Window
 {
     private readonly TextBox amStart = new(), amEnd = new(), pmStart = new(), pmEnd = new();
-    private static readonly string[] OffWorkLabels = { "假装逃跑（关机动画）", "睡觉", "说话动画", "只弹气泡" };
-    private readonly ComboBox offWork = new();
+    private static readonly string[] OffWorkLabels = { "玩耍（见下方项目）", "假装逃跑（关机动画）", "睡觉", "说话动画", "只弹气泡" };
+    private static readonly string[] PreLabels = { "思考", "说话表情", "随机待机动作", "无（只倒数）" };
+    private readonly ComboBox offWork = new(), preAction = new(), playWork = new();
+    private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
     private readonly TextBox scale = new(), opacity = new();
     private readonly ColorField panelColor = new(), ringColor = new(), glowColor = new();
     private readonly CheckBox showPanel = new() { Content = "显示打工面板" };
     private readonly CheckBox followPet = new() { Content = "面板跟随宠物移动" };
 
-    public SettingsWindow(PluginSettings settings, Action onSaved, Action? openAiSettings = null, Action<string>? previewOffWork = null)
+    public SettingsWindow(PluginSettings settings, Action onSaved, Action? openAiSettings = null, OffWorkHooks? offWorkHooks = null)
     {
         Title = "打工设置";
         Width = 360;
@@ -33,6 +35,12 @@ public class SettingsWindow : Window
         pmEnd.Text = WorkSchedule.FormatTime(s.PmEnd);
         scale.Text = settings.PanelScale.ToString("0", CultureInfo.InvariantCulture);
         foreach (var l in OffWorkLabels) offWork.Items.Add(l);
+        foreach (var l in PreLabels) preAction.Items.Add(l);
+        preAction.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.PreActions, settings.PreAction));
+        countdown.IsChecked = settings.OffWorkCountdown;
+        var playNames = offWorkHooks?.PlayNames() ?? Array.Empty<string>();
+        foreach (var n in playNames) playWork.Items.Add(n);
+        playWork.SelectedIndex = Math.Max(0, playNames.ToList().IndexOf(settings.OffWorkPlay));
         offWork.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.OffWorkActions, settings.OffWorkAction));
         opacity.Text = settings.PanelOpacity.ToString("0", CultureInfo.InvariantCulture);
         panelColor.Value = settings.PanelColor;
@@ -48,7 +56,10 @@ public class SettingsWindow : Window
         AddRow(grid, "上午下班 (HH:MM)", amEnd);
         AddRow(grid, "下午上班 (HH:MM)", pmStart);
         AddRow(grid, "下午下班 (HH:MM)", pmEnd);
+        AddRow(grid, "", countdown);
+        AddRow(grid, "倒数期间动作", preAction);
         AddRow(grid, "到点下班时宠物", offWork);
+        AddRow(grid, "玩耍项目", playWork);
         AddRow(grid, "面板大小 (50-300 %)", scale);
         AddRow(grid, "透明度 (20-100 %)", opacity);
         AddRow(grid, "面板颜色", panelColor);
@@ -100,6 +111,9 @@ public class SettingsWindow : Window
             settings.Schedule.PmStart = n.PmStart;
             settings.Schedule.PmEnd = n.PmEnd;
             settings.OffWorkAction = PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)];
+            settings.PreAction = PluginSettings.PreActions[Math.Max(0, preAction.SelectedIndex)];
+            settings.OffWorkCountdown = countdown.IsChecked == true;
+            if (playWork.SelectedItem is string pw) settings.OffWorkPlay = pw;
             settings.PanelScale = sc;
             settings.PanelOpacity = op;
             settings.PanelColor = panelColor.Value;
@@ -111,9 +125,16 @@ public class SettingsWindow : Window
             Close();
         };
 
-        var preview = new Button { Content = "预览下班动作", Margin = new Thickness(16, 0, 16, 6), Padding = new Thickness(0, 6, 0, 6) };
-        preview.Click += (_, _) => previewOffWork?.Invoke(PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)]);
-        preview.IsEnabled = previewOffWork != null;
+        // 预览用的是窗口里当前选的值, 不用先保存
+        string Action_() => PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)];
+        string Play_() => playWork.SelectedItem as string ?? "";
+        var previewFinal = new Button { Content = "预览：只看到点后的下班动作", Margin = new Thickness(16, 0, 16, 6), Padding = new Thickness(0, 6, 0, 6) };
+        previewFinal.Click += (_, _) => offWorkHooks?.PreviewFinal(Action_(), Play_());
+        previewFinal.IsEnabled = offWorkHooks != null;
+        var previewSeq = new Button { Content = "预览：完整流程（3-2-1 + 下班动作）", Margin = new Thickness(16, 0, 16, 6), Padding = new Thickness(0, 6, 0, 6) };
+        previewSeq.Click += (_, _) => offWorkHooks?.PreviewSequence(
+            PluginSettings.PreActions[Math.Max(0, preAction.SelectedIndex)], Action_(), Play_());
+        previewSeq.IsEnabled = offWorkHooks != null;
 
         var ai = new Button { Content = "AI 设置（豆包 / 周报 / 钉钉）…", Margin = new Thickness(16, 0, 16, 0), Padding = new Thickness(0, 6, 0, 6) };
         ai.Click += (_, _) => openAiSettings?.Invoke();
@@ -121,7 +142,8 @@ public class SettingsWindow : Window
 
         var root = new StackPanel();
         root.Children.Add(grid);
-        root.Children.Add(preview);
+        root.Children.Add(previewSeq);
+        root.Children.Add(previewFinal);
         root.Children.Add(ai);
         root.Children.Add(new Border { Padding = new Thickness(16, 0, 16, 16), Child = save });
         Content = root;

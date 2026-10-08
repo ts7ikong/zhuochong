@@ -14,11 +14,18 @@ public class PluginSettings
     public WorkSchedule Schedule { get; private set; } = new();
     /// <summary>是否显示薪资面板</summary>
     public bool ShowPanel { get; set; } = true;
+    /// <summary>下班前 3 秒开始倒数 (期间宠物做预备动作, 气泡里 3-2-1, 带"今天加班"按钮)</summary>
+    public bool OffWorkCountdown { get; set; } = true;
+    /// <summary>倒数期间的预备动作: think=思考 / say=说话表情 / idle=随机待机动作 / none=不做动作</summary>
+    public string PreAction { get; set; } = "think";
+    public static readonly string[] PreActions = { "think", "say", "idle", "none" };
     /// <summary>
-    /// 到点下班时宠物做什么: shutdown=假装逃跑(播放关机动画) / sleep=睡觉 / say=说话动画 / none=只弹气泡
+    /// 到点下班时宠物做什么: play=玩耍(互动里的玩耍项目) / shutdown=假装逃跑(关机动画) / sleep=睡觉 / say=说话动画 / none=只弹气泡
     /// </summary>
-    public string OffWorkAction { get; set; } = "shutdown";
-    public static readonly string[] OffWorkActions = { "shutdown", "sleep", "say", "none" };
+    public string OffWorkAction { get; set; } = "play";
+    public static readonly string[] OffWorkActions = { "play", "shutdown", "sleep", "say", "none" };
+    /// <summary>"play" 时玩哪个项目, 留空 = 用第一个当前能玩的; 项目不可用会退回假装逃跑</summary>
+    public string OffWorkPlay { get; set; } = "玩水";
     /// <summary>面板大小百分比, 100 为默认</summary>
     public double PanelScale { get; set; } = 100;
     /// <summary>面板整体不透明度百分比 20~100</summary>
@@ -45,8 +52,12 @@ public class PluginSettings
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
         ShowPanel = line.GetString("show_panel", "true") != "false";
         PanelScale = Math.Max(50, Math.Min(ParseDouble(line.GetString("panel_scale", "100"), 100), 300));
-        var act = line.GetString("offwork_action", "shutdown");
-        OffWorkAction = OffWorkActions.Contains(act) ? act! : "shutdown";
+        var act = line.GetString("offwork_action", "play");
+        OffWorkAction = OffWorkActions.Contains(act) ? act! : "play";
+        var pre = line.GetString("pre_action", "think");
+        PreAction = PreActions.Contains(pre) ? pre! : "think";
+        OffWorkCountdown = line.GetString("offwork_countdown", "true") != "false";
+        OffWorkPlay = line.GetString("offwork_play", "玩水") ?? "玩水";
         PanelOpacity = Math.Max(20, Math.Min(ParseDouble(line.GetString("panel_opacity", "100"), 100), 100));
         PanelColor = ValidColor(line.GetString("panel_color", ""));
         RingColor = ValidColor(line.GetString("ring_color", ""));
@@ -66,6 +77,9 @@ public class PluginSettings
         line.SetString("show_panel", ShowPanel ? "true" : "false");
         line.SetString("panel_scale", PanelScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("offwork_action", OffWorkAction);
+        line.SetString("pre_action", PreAction);
+        line.SetString("offwork_countdown", OffWorkCountdown ? "true" : "false");
+        line.SetString("offwork_play", OffWorkPlay);
         line.SetString("panel_opacity", PanelOpacity.ToString(CultureInfo.InvariantCulture));
         line.SetString("panel_color", PanelColor);
         line.SetString("ring_color", RingColor);

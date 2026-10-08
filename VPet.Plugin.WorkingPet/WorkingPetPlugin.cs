@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
 using VPet_Simulator.Core;
-using static VPet_Simulator.Core.GraphInfo;
 using VPet_Simulator.Windows.Interface;
 
 namespace VPet.Plugin.WorkingPet;
@@ -20,6 +19,7 @@ public class WorkingPetPlugin : MainPlugin
     private WorkLogStore? store;
     private WorkLogWindow? logWindow;
     private AiFeatures? ai;
+    private OffWorkController? offWork;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
 
@@ -32,6 +32,7 @@ public class WorkingPetPlugin : MainPlugin
     {
         settings.Load(MW.GameSavesData.Data);
         ai = new AiFeatures(MW, settings, () => Store);
+        offWork = new OffWorkController(MW, settings);
         MW.Dispatcher.Invoke(() =>
         {
             ApplyPanelVisibility();
@@ -40,6 +41,7 @@ public class WorkingPetPlugin : MainPlugin
             reminderTimer.Tick += (_, _) => CheckReminders();
             reminderTimer.Start();
             ai.Start();
+            offWork.Start();
         });
     }
 
@@ -67,7 +69,7 @@ public class WorkingPetPlugin : MainPlugin
             ApplyPanelVisibility();
             panel?.Refresh();
             fired.Clear(); // 改了时间后允许重新提醒
-        }, () => ai?.OpenSettings(), action => PlayOffWork(action, "下班了！关电脑！回家！"));
+        }, () => ai?.OpenSettings(), offWork?.CreateHooks());
         win.Closed += (_, _) => MW.Windows.Remove(win);
         MW.Windows.Add(win); // 登记后游戏退出时会统一关闭
         win.Show();
@@ -120,6 +122,7 @@ public class WorkingPetPlugin : MainPlugin
     {
         reminderTimer?.Stop();
         ai?.Stop();
+        offWork?.Stop();
         MW.Dispatcher.Invoke(() => { panel?.Close(); logWindow?.Close(); });
         panel = null;
     }
@@ -142,32 +145,6 @@ public class WorkingPetPlugin : MainPlugin
         }
     }
 
-    /// <summary>
-    /// 到点下班时让宠物用自己的动作提醒你. 复用 VPet 现有动画:
-    /// shutdown = "假装逃跑" (游戏里随机事件用的关机动画, 播完回到待机); sleep = 睡觉直到你点它; say = 说话表情.
-    /// 宠物正在被拖拽/工作/学习时不打断它, 只弹气泡.
-    /// </summary>
-    private void PlayOffWork(string action, string text)
-    {
-        var main = MW.Main;
-        if (action == "say")
-        {
-            main.SayRnd(text, true);
-            return;
-        }
-        main.Say(text); // 只弹气泡, 不带动画
-        if (!main.IsIdel) return;
-        switch (action)
-        {
-            case "shutdown":
-                main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
-                break;
-            case "sleep":
-                main.DisplaySleep(true);
-                break;
-        }
-    }
-
     private void CheckReminders()
     {
         var s = settings.Schedule;
@@ -179,9 +156,7 @@ public class WorkingPetPlugin : MainPlugin
         if (ai?.Config.DailyConfirm != true && t >= s.PmEnd - TimeSpan.FromMinutes(10) && t < s.PmEnd && fired.Add(day + "end_soon"))
             MW.Main.SayRnd($"还有 {Math.Max(1, (int)Math.Ceiling(s.SecondsToOffWork(t) / 60))} 分钟下班，快收尾了！", true);
 
-        // 到点下班 (启动时已过点则不再弹, 只在 5 分钟窗口内提醒)
-        if (t >= s.PmEnd && t < s.PmEnd + TimeSpan.FromMinutes(5) && fired.Add(day + "off_work"))
-            PlayOffWork(settings.OffWorkAction, "下班了！关电脑！回家！");
+        // 到点下班(倒数 + 两段动作)由 OffWorkController 负责
 
         // AI 相关提醒: 日报确认 / 周报
         ai?.CheckReminders(now);
