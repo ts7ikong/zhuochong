@@ -10,6 +10,7 @@ public class SettingsWindow : Window
     private readonly TextBox salary = new();
     private readonly TextBox amStart = new(), amEnd = new(), pmStart = new(), pmEnd = new();
     private readonly CheckBox showPanel = new() { Content = "显示薪资面板" };
+    private readonly CheckBox followPet = new() { Content = "面板跟随宠物移动" };
 
     public SettingsWindow(PluginSettings settings, Action onSaved)
     {
@@ -27,6 +28,7 @@ public class SettingsWindow : Window
         pmStart.Text = WorkSchedule.FormatTime(s.PmStart);
         pmEnd.Text = WorkSchedule.FormatTime(s.PmEnd);
         showPanel.IsChecked = settings.ShowPanel;
+        followPet.IsChecked = settings.FollowPet;
 
         var grid = new Grid { Margin = new Thickness(16) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
@@ -37,6 +39,7 @@ public class SettingsWindow : Window
         AddRow(grid, "下午上班 (HH:MM)", pmStart);
         AddRow(grid, "下午下班 (HH:MM)", pmEnd);
         AddRow(grid, "", showPanel);
+        AddRow(grid, "", followPet);
 
         var save = new Button { Content = "保存", Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(0, 6, 0, 6) };
         save.Click += (_, _) =>
@@ -63,6 +66,7 @@ public class SettingsWindow : Window
             settings.Schedule.PmStart = n.PmStart;
             settings.Schedule.PmEnd = n.PmEnd;
             settings.ShowPanel = showPanel.IsChecked == true;
+            settings.FollowPet = followPet.IsChecked == true;
             onSaved();
             Close();
         };

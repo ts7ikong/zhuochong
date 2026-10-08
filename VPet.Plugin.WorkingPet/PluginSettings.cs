@@ -14,6 +14,8 @@ public class PluginSettings
     public WorkSchedule Schedule { get; private set; } = new();
     /// <summary>是否显示薪资面板</summary>
     public bool ShowPanel { get; set; } = true;
+    /// <summary>面板是否跟随宠物移动</summary>
+    public bool FollowPet { get; set; } = true;
     /// <summary>面板位置, NaN 表示还没拖动过, 使用默认位置</summary>
     public double PanelLeft { get; set; } = double.NaN;
     public double PanelTop { get; set; } = double.NaN;
@@ -30,6 +32,7 @@ public class PluginSettings
         // 存档里的配置不合法时回退默认值, 避免除零/负数
         Schedule = s.IsValid(out _) ? s : new WorkSchedule();
         ShowPanel = line.GetString("show_panel", "true") != "false";
+        FollowPet = line.GetString("follow_pet", "true") != "false";
         PanelLeft = ParseDouble(line.GetString("panel_left", "NaN"), double.NaN);
         PanelTop = ParseDouble(line.GetString("panel_top", "NaN"), double.NaN);
     }
@@ -43,6 +46,7 @@ public class PluginSettings
         line.SetString("pm_end", WorkSchedule.FormatTime(Schedule.PmEnd));
         line.SetString("monthly_salary", Schedule.MonthlySalary.ToString(CultureInfo.InvariantCulture));
         line.SetString("show_panel", ShowPanel ? "true" : "false");
+        line.SetString("follow_pet", FollowPet ? "true" : "false");
         line.SetString("panel_left", PanelLeft.ToString(CultureInfo.InvariantCulture));
         line.SetString("panel_top", PanelTop.ToString(CultureInfo.InvariantCulture));
     }

@@ -70,7 +70,7 @@ public class WorkingPetPlugin : MainPlugin
         {
             if (panel == null)
             {
-                panel = new SalaryPanel(settings);
+                panel = new SalaryPanel(settings, Window.GetWindow(MW.Main));
                 panel.ApplyPosition();
                 panel.Closed += (_, _) => panel = null;
             }

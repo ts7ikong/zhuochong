@@ -13,6 +13,7 @@ namespace VPet.Plugin.WorkingPet;
 public class SalaryPanel : Window
 {
     private readonly PluginSettings settings;
+    private readonly Window? petWindow;
     private readonly TextBlock tTime = Make(20, FontWeights.Bold, "#00D4FF");
     private readonly TextBlock tStatus = Make(12, FontWeights.Normal, "#6090C0");
     private readonly TextBlock tWorked = Make(11, FontWeights.Normal, "#8090B0");
@@ -20,9 +21,11 @@ public class SalaryPanel : Window
     private readonly Border box = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
 
-    public SalaryPanel(PluginSettings settings)
+    /// <param name="petWindow">桌宠所在的主窗口, 面板开启"跟随宠物"时会贴在它旁边</param>
+    public SalaryPanel(PluginSettings settings, Window? petWindow)
     {
         this.settings = settings;
+        this.petWindow = petWindow;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -45,19 +48,58 @@ public class SalaryPanel : Window
         box.BorderThickness = new Thickness(1);
         Content = box;
 
-        // 拖动面板, 松手后保存位置
-        MouseLeftButtonDown += (_, _) => DragMove();
-        LocationChanged += (_, _) => { settings.PanelLeft = Left; settings.PanelTop = Top; };
+        // 不跟随宠物时可拖动面板并记住位置; 跟随时位置由宠物决定
+        MouseLeftButtonDown += (_, _) => { if (!settings.FollowPet) DragMove(); };
+        LocationChanged += (_, _) =>
+        {
+            if (settings.FollowPet) return;
+            settings.PanelLeft = Left;
+            settings.PanelTop = Top;
+        };
+
+        // 宠物被拖动/缩放时立即跟上
+        if (petWindow != null)
+        {
+            petWindow.LocationChanged += (_, _) => Follow();
+            petWindow.SizeChanged += (_, _) => Follow();
+        }
+        SizeChanged += (_, _) => Follow();
 
         timer.Tick += (_, _) => Refresh();
         Loaded += (_, _) => { Refresh(); timer.Start(); };
         Closed += (_, _) => timer.Stop();
     }
 
-    /// <summary>首次显示的默认位置: 屏幕右上角</summary>
+    /// <summary>
+    /// 把面板贴到宠物窗口右侧; 右侧放不下就放左侧; 垂直方向与宠物窗口底部对齐并限制在屏幕内
+    /// </summary>
+    public void Follow()
+    {
+        if (!settings.FollowPet || petWindow == null || (!IsLoaded && !IsVisible)) return;
+        double w = ActualWidth, h = ActualHeight;
+        if (w <= 0 || h <= 0) return;
+        var area = SystemParameters.WorkArea;
+        double petW = petWindow.ActualWidth, petH = petWindow.ActualHeight;
+        const double gap = 4;
+
+        double left = petWindow.Left + petW + gap;
+        if (left + w > area.Right) left = petWindow.Left - w - gap;
+        double top = petWindow.Top + petH - h;
+
+        Left = Math.Max(area.Left, Math.Min(left, area.Right - w));
+        Top = Math.Max(area.Top, Math.Min(top, area.Bottom - h));
+    }
+
+    /// <summary>首次显示的默认位置: 跟随时贴宠物, 否则用保存的位置/屏幕右上角</summary>
     public void ApplyPosition()
     {
         WindowStartupLocation = WindowStartupLocation.Manual;
+        if (settings.FollowPet && petWindow != null)
+        {
+            Left = petWindow.Left + petWindow.ActualWidth + 4;
+            Top = petWindow.Top;
+            return;
+        }
         if (double.IsNaN(settings.PanelLeft) || double.IsNaN(settings.PanelTop)
             || settings.PanelLeft < 0 || settings.PanelTop < 0
             || settings.PanelLeft > SystemParameters.VirtualScreenWidth - 40
@@ -79,6 +121,7 @@ public class SalaryPanel : Window
         var now = DateTime.Now;
         var t = now.TimeOfDay;
         tTime.Text = now.ToString("HH:mm:ss");
+        Follow(); // 兜底: 缩放倍率等变化不一定触发事件
 
         double worked = s.WorkedSeconds(t);
         tWorked.Text = $"⏱ {(int)(worked / 3600)}h {(int)(worked % 3600 / 60)}m  ·  🏃 {RemainText(s, t)}";
