@@ -16,6 +16,7 @@ public class SettingsWindow : Window
     private readonly TextBox runScale = new(), runSeconds = new(), runStay = new();
     private readonly CheckBox sleepAfter = new() { Content = "跑回去之后直接睡觉" };
     private readonly CheckBox companion = new() { Content = "陪伴模式：宠物跟着我工作/摸鱼/下班" };
+    private readonly CheckBox proactive = new() { Content = "宠物主动说话（结合我在做的事）" };
     private readonly CheckBox hideMoving = new() { Content = "宠物自己走动时隐藏面板" };
     private readonly CheckBox tease = new() { Content = "摸鱼太久时宠物调侃我" };
     private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
@@ -52,6 +53,7 @@ public class SettingsWindow : Window
         companion.IsChecked = settings.Companion;
         tease.IsChecked = settings.CompanionTease;
         hideMoving.IsChecked = settings.HideWhenMoving;
+        proactive.IsChecked = settings.ProactiveTalk;
         countdown.IsChecked = settings.OffWorkCountdown;
         sleepAfter.IsChecked = settings.SleepAfterRun;
         runScale.Text = settings.RunScale.ToString("0.0#", CultureInfo.InvariantCulture);
@@ -75,6 +77,7 @@ public class SettingsWindow : Window
         AddRow(grid, "", companion);
         AddRow(grid, "", tease);
         AddRow(grid, "", hideMoving);
+        AddRow(grid, "", proactive);
         AddRow(grid, "", countdown);
         AddRow(grid, "倒数期间动作", preAction);
         AddRow(grid, "到点下班时宠物", offWork);
@@ -163,6 +166,7 @@ public class SettingsWindow : Window
             settings.Companion = companion.IsChecked == true;
             settings.CompanionTease = tease.IsChecked == true;
             settings.HideWhenMoving = hideMoving.IsChecked == true;
+            settings.ProactiveTalk = proactive.IsChecked == true;
             settings.RunScale = ro.Scale;
             settings.RunSeconds = ro.Seconds;
             settings.RunStay = ro.StaySeconds;

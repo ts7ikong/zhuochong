@@ -34,6 +34,7 @@ public class Companion
     private readonly Queue<string> recent = new(); // 最近两次 AI 判断
 
     private string judgement = "";      // 防抖后的结论: "" / "work" / "slack"
+    private DateTime judgementSince = DateTime.MinValue; // 当前结论从什么时候开始
     private string? owned;              // 陪伴模式启动的活动名 (null = 当前没有我们的活动)
     private string? lastPicked;
     private bool ownsSleep;             // 睡眠是陪伴模式让它睡的
@@ -66,6 +67,9 @@ public class Companion
     /// <summary>防抖后的判断: "" / "work" / "slack"</summary>
     public string Judgement => judgement;
 
+    /// <summary>当前判断 (工作/摸鱼) 持续了多久的起点</summary>
+    public DateTime JudgementSince => judgementSince;
+
     /// <summary>给状态窗口显示的一句话</summary>
     public string Line()
     {
@@ -85,7 +89,7 @@ public class Companion
         // 连续两次判断一致才改结论, 防止来回抽风
         if (recent.Count == 2 && recent.All(x => x == state))
         {
-            if (judgement != state) DebugLog.Write($"陪伴: 判断变为 {state}");
+            if (judgement != state) { DebugLog.Write($"陪伴: 判断变为 {state}"); judgementSince = DateTime.Now; }
             judgement = state;
         }
         if (state == "slack")

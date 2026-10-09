@@ -37,6 +37,8 @@ public class PluginSettings
     public bool CompanionTease { get; set; } = true;
     /// <summary>宠物自己走动时隐藏面板</summary>
     public bool HideWhenMoving { get; set; } = true;
+    /// <summary>宠物结合你在做的事主动说话</summary>
+    public bool ProactiveTalk { get; set; } = true;
     /// <summary>面板样式: hud=环绕宠物 / side=侧边面板</summary>
     public string PanelStyle { get; set; } = "hud";
     public static readonly string[] PanelStyles = { "hud", "side", "tech", "vector" };
@@ -78,6 +80,7 @@ public class PluginSettings
         Companion = line.GetString("companion", "true") != "false";
         CompanionTease = line.GetString("companion_tease", "true") != "false";
         HideWhenMoving = line.GetString("hide_when_moving", "true") != "false";
+        ProactiveTalk = line.GetString("proactive_talk", "true") != "false";
         var style = line.GetString("panel_style", "hud");
         PanelStyle = PanelStyles.Contains(style) ? style! : "hud";
         HudRingScale = Math.Max(60, Math.Min(ParseDouble(line.GetString("hud_ring_scale", "100"), 100), 160));
@@ -111,6 +114,7 @@ public class PluginSettings
         line.SetString("companion", Companion ? "true" : "false");
         line.SetString("companion_tease", CompanionTease ? "true" : "false");
         line.SetString("hide_when_moving", HideWhenMoving ? "true" : "false");
+        line.SetString("proactive_talk", ProactiveTalk ? "true" : "false");
         line.SetString("panel_style", PanelStyle);
         line.SetString("hud_ring_scale", HudRingScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("hud_ring_offset", HudRingOffsetY.ToString(CultureInfo.InvariantCulture));

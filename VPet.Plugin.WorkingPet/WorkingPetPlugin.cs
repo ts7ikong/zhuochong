@@ -23,6 +23,7 @@ public class WorkingPetPlugin : MainPlugin
     private AiFeatures? ai;
     private OffWorkController? offWork;
     private Companion? companion;
+    private Chatter? chatter;
     private PetStatusWindow? statusWindow;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
@@ -44,6 +45,7 @@ public class WorkingPetPlugin : MainPlugin
         ai = new AiFeatures(MW, settings, config, () => Store);
         offWork = new OffWorkController(MW, settings);
         companion = new Companion(MW, settings, offWork);
+        chatter = new Chatter(MW, settings, ai, companion, offWork);
         ai.Collector.StateClassified += state => MW.Dispatcher.InvokeAsync(() => companion.OnClassified(state));
         ai.PetContext = () => PetInfo.Describe(MW, OwnerStateText());
         MW.Dispatcher.Invoke(() =>
@@ -56,6 +58,7 @@ public class WorkingPetPlugin : MainPlugin
             ai.Start();
             offWork.Start();
             companion.Start();
+            chatter.Start();
         });
     }
 
@@ -183,6 +186,7 @@ public class WorkingPetPlugin : MainPlugin
         ai?.Stop();
         offWork?.Stop();
         companion?.Stop();
+        chatter?.Stop();
         MW.Dispatcher.Invoke(() => { panel?.Close(); logWindow?.Close(); statusWindow?.Close(); });
         panel = null;
     }
