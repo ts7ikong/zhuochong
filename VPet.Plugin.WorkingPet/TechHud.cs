@@ -28,12 +28,12 @@ namespace VPet.Plugin.WorkingPet;
 /// </summary>
 public class TechHud : Window, IPetPanel
 {
-    private record TechTheme(string Name, double Hue, double Sat, string Arc1, string Arc2, string Glow, bool Pulse);
+    internal record TechTheme(string Name, double Hue, double Sat, string Arc1, string Arc2, string Glow, bool Pulse);
 
-    private static readonly TechTheme Working = new("working", 0, 1.0, "#5FE6FF", "#C79BFF", "#4FA8FF", false);
-    private static readonly TechTheme Lunch = new("lunch", -95, 1.0, "#7DF2A0", "#FFE48A", "#5FE29A", false);
-    private static readonly TechTheme Before = new("before", 0, 0.35, "#A9D4E6", "#B9A9E8", "#8FB4D8", false);
-    private static readonly TechTheme Off = new("off", 150, 1.0, "#FF8A5A", "#FFC24A", "#FF7A5A", true);
+    internal static readonly TechTheme Working = new("working", 0, 1.0, "#5FE6FF", "#C79BFF", "#4FA8FF", false);
+    internal static readonly TechTheme Lunch = new("lunch", -95, 1.0, "#7DF2A0", "#FFE48A", "#5FE29A", false);
+    internal static readonly TechTheme Before = new("before", 0, 0.35, "#A9D4E6", "#B9A9E8", "#8FB4D8", false);
+    internal static readonly TechTheme Off = new("off", 150, 1.0, "#FF8A5A", "#FFC24A", "#FF7A5A", true);
 
     // 画布范围 (单位): 比宠物画布 (0..500) 向四周留出余量
     private const double X0 = -170, Y0 = -210, CanvasW = 860, CanvasH = 900;
@@ -204,7 +204,7 @@ public class TechHud : Window, IPetPanel
         return bmp;
     }
 
-    private static void Rgb2Hsv(byte rb, byte gb, byte bb, out double h, out double s, out double v)
+    internal static void Rgb2Hsv(byte rb, byte gb, byte bb, out double h, out double s, out double v)
     {
         double r = rb / 255.0, g = gb / 255.0, b = bb / 255.0;
         double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b)), d = max - min;
@@ -216,7 +216,7 @@ public class TechHud : Window, IPetPanel
         else h = 60 * ((r - g) / d + 4);
     }
 
-    private static void Hsv2Rgb(double h, double s, double v, out byte r, out byte g, out byte b)
+    internal static void Hsv2Rgb(double h, double s, double v, out byte r, out byte g, out byte b)
     {
         double c = v * s, x = c * (1 - Math.Abs(h / 60 % 2 - 1)), m = v - c;
         double rr, gg, bb;
@@ -517,7 +517,7 @@ public class TechHud : Window, IPetPanel
 
     // ── 背层: 环内深色圆盘 ───────────────────────────────────
 
-    private sealed class BackLayer : Window
+    internal sealed class BackLayer : Window
     {
         public BackLayer()
         {
@@ -533,9 +533,12 @@ public class TechHud : Window, IPetPanel
         }
 
         /// <summary>圆心 (cx, cy) 和半径 r 都是像素 (相对窗口左上角)</summary>
-        public void Build(double s, double cx, double cy, double r)
+        public Canvas? Root { get; private set; }
+
+        public void Build(double s, double cx, double cy, double r, double canvasW = CanvasW, double canvasH = CanvasH)
         {
-            var c = new Canvas { Width = CanvasW * s, Height = CanvasH * s, IsHitTestVisible = false };
+            var c = new Canvas { Width = canvasW * s, Height = canvasH * s, IsHitTestVisible = false };
+            Root = c;
             var disc = new Ellipse
             {
                 Width = 2 * r, Height = 2 * r,

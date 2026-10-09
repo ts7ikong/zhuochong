@@ -207,6 +207,7 @@ public class WorkingPetPlugin : MainPlugin
                 {
                     "side" => new PetPanel(settings, pet),
                     "tech" => new TechHud(settings, pet),
+                    "vector" => new VectorHud(settings, pet),
                     _ => new PetHud(settings, pet),
                 };
                 ((IPetPanel)panel).ApplyPosition();
