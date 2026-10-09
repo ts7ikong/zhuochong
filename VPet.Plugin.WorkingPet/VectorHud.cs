@@ -228,7 +228,7 @@ public class VectorHud : Window, IPetPanel
         AddParticles(hl, ht);
 
         haloLayer = new Canvas { Width = Width, Height = Height, IsHitTestVisible = false };
-        root.Children.Add(haloLayer);
+        back.Root!.Children.Add(haloLayer);
         haloTrack = Circle(haloLayer, 220, 20, Solid("#354D91", 0.28), null);
         Circle(haloLayer, 220, 2, Solid("#9EB8FF", 0.55), new DoubleCollection { 2.5, 5 });
         Circle(haloLayer, 197, 3, Solid("#4DDFFF", 0.7), new DoubleCollection { 0.667, 4 });
@@ -245,7 +245,7 @@ public class VectorHud : Window, IPetPanel
             StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
             Effect = arcGlow, IsHitTestVisible = false,
         };
-        root.Children.Add(arc);
+        back.Root.Children.Add(arc);
 
         // ── 时钟 (760x190) ──
         double ck = 0.45, cl = 250 - 380 * ck, ct = -165;

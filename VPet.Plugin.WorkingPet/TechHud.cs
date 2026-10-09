@@ -280,11 +280,13 @@ public class TechHud : Window, IPetPanel
                 Stretch = Stretch.Fill, IsHitTestVisible = false,
             };
             RenderOptions.SetBitmapScalingMode(ringImage, BitmapScalingMode.HighQuality);
-            Put(ringImage, X(ringCx - RingSrcCx * kk), Y(ringCy - RingSrcCy * kk));
+            Canvas.SetLeft(ringImage, X(ringCx - RingSrcCx * kk));
+            Canvas.SetTop(ringImage, Y(ringCy - RingSrcCy * kk));
             sprites.Add((ringImage, "ring"));
             bandR = BandR * kk; bandW = BandW * kk;
         }
         back.Build(s, X(ringCx), Y(ringCy), bandR * 0.93 * s);
+        back.Root!.Children.Add(ringImage); // 环放在背层: 宠物盖在环上面
 
         // 进度轨 (只补在贴图里被抠掉的那一段 -12°..80°) + 进度弧
         track = new Path
@@ -294,7 +296,7 @@ public class TechHud : Window, IPetPanel
             StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
             Data = ArcGeometry(-12, 80),
         };
-        root.Children.Add(track);
+        back.Root.Children.Add(track);
 
         arcA = new GradientStop(Colors.White, 0);
         arcB = new GradientStop(Colors.White, 1);
@@ -307,7 +309,7 @@ public class TechHud : Window, IPetPanel
             StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
             Effect = arcGlow,
         };
-        root.Children.Add(arc);
+        back.Root.Children.Add(arc);
 
         // 点缀 (设计图里的加号 / 星光)
         AddSprite("plus_b", 618, 525, 0.9, deco: true);
