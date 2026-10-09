@@ -22,6 +22,8 @@ public class WorkingPetPlugin : MainPlugin
     private readonly AiConfig config = AiConfig.Load();
     private AiFeatures? ai;
     private OffWorkController? offWork;
+    private Companion? companion;
+    private PetStatusWindow? statusWindow;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
 
@@ -41,6 +43,9 @@ public class WorkingPetPlugin : MainPlugin
         settings.Load(MW.GameSavesData.Data);
         ai = new AiFeatures(MW, settings, config, () => Store);
         offWork = new OffWorkController(MW, settings);
+        companion = new Companion(MW, settings, offWork);
+        ai.Collector.StateClassified += state => MW.Dispatcher.InvokeAsync(() => companion.OnClassified(state));
+        ai.PetContext = () => PetInfo.Describe(MW, OwnerStateText());
         MW.Dispatcher.Invoke(() =>
         {
             ApplyPanelVisibility();
@@ -50,6 +55,7 @@ public class WorkingPetPlugin : MainPlugin
             reminderTimer.Start();
             ai.Start();
             offWork.Start();
+            companion.Start();
         });
     }
 
@@ -71,6 +77,12 @@ public class WorkingPetPlugin : MainPlugin
         {
             settings.ShowPanel = !settings.ShowPanel;
             ApplyPanelVisibility();
+        });
+        Add("宠物状态", OpenPetStatus);
+        Add("陪伴模式 开/关", () =>
+        {
+            settings.Companion = !settings.Companion;
+            MW.Main.SayRnd(settings.Companion ? "陪伴模式开启，我会跟着你一起工作/摸鱼～" : "陪伴模式关闭，我自己玩啦");
         });
         Add("记录工作", RecordWork);
         Add("工作日历", OpenCalendar);
@@ -96,6 +108,29 @@ public class WorkingPetPlugin : MainPlugin
         }, () => ai?.OpenSettings(), offWork?.CreateHooks());
         win.Closed += (_, _) => MW.Windows.Remove(win);
         MW.Windows.Add(win); // 登记后游戏退出时会统一关闭
+        win.Show();
+    }
+
+    /// <summary>AI 对你当前状态的判断, 放进对话提示词里</summary>
+    private string OwnerStateText() => companion?.Judgement switch
+    {
+        "work" => "在工作",
+        "slack" => "在摸鱼",
+        _ => "的状态不明",
+    };
+
+    /// <summary>打开宠物状态窗口, 已打开则置前</summary>
+    private void OpenPetStatus()
+    {
+        if (statusWindow != null)
+        {
+            statusWindow.Activate();
+            return;
+        }
+        var win = new PetStatusWindow(MW, () => companion?.Line() ?? "", () => ai?.Activity.DayStats(DateTime.Today) ?? (0, 0, 0));
+        statusWindow = win;
+        win.Closed += (_, _) => { statusWindow = null; MW.Windows.Remove(win); };
+        MW.Windows.Add(win);
         win.Show();
     }
 
@@ -147,7 +182,8 @@ public class WorkingPetPlugin : MainPlugin
         reminderTimer?.Stop();
         ai?.Stop();
         offWork?.Stop();
-        MW.Dispatcher.Invoke(() => { panel?.Close(); logWindow?.Close(); });
+        companion?.Stop();
+        MW.Dispatcher.Invoke(() => { panel?.Close(); logWindow?.Close(); statusWindow?.Close(); });
         panel = null;
     }
 

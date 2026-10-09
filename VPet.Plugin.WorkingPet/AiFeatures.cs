@@ -24,6 +24,12 @@ public class AiFeatures
 
     public AiConfig Config { get; }
 
+    /// <summary>后台采集器 (陪伴模式订阅它的"工作/摸鱼"判断)</summary>
+    public ActivityCollector Collector => collector;
+
+    /// <summary>宠物此刻的状态描述, 由插件设置; 对话时交给 AI, 让它用宠物的口吻回话</summary>
+    public Func<string> PetContext { get; set; } = () => "";
+
     /// <summary>采集数据的读写 (窗口记录 / 活动摘要 / 屏幕描述 / 应用时长), 位于数据目录下</summary>
     public ActivityStore Activity { get; }
 
@@ -84,7 +90,7 @@ public class AiFeatures
                 int todayCount = Store.GetDay(now).Count;
                 var raw = await DoubaoClient.ChatAsync(cfg, new[]
                 {
-                    ("system", AiPrompts.IntentSystemPrompt(now, todayCount)),
+                    ("system", AiPrompts.IntentSystemPrompt(now, todayCount, SafePetContext())),
                     ("user", text),
                 }, 200);
                 var (intent, content) = AiPrompts.ParseIntent(raw);
@@ -116,6 +122,16 @@ public class AiFeatures
                 busy = false;
             }
         });
+    }
+
+    private string SafePetContext()
+    {
+        try { return PetContext(); }
+        catch (Exception e)
+        {
+            DebugLog.Write("读取宠物状态失败: " + e.Message);
+            return "";
+        }
     }
 
     private int SafeAdd(string text)

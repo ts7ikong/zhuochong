@@ -31,6 +31,10 @@ public class PluginSettings
     /// <summary>跑回原位之后直接睡觉 (否则恢复待机)</summary>
     public bool SleepAfterRun { get; set; } = true;
     public RunOptions Run => new(RunScale, RunSeconds, RunStay, SleepAfterRun);
+    /// <summary>陪伴模式: 宠物跟着你的状态做工作/玩耍/睡觉</summary>
+    public bool Companion { get; set; } = true;
+    /// <summary>你摸鱼太久时宠物调侃一句 (每 40 分钟最多一次, 只在上班时段)</summary>
+    public bool CompanionTease { get; set; } = true;
     /// <summary>面板样式: hud=环绕宠物 / side=侧边面板</summary>
     public string PanelStyle { get; set; } = "hud";
     public static readonly string[] PanelStyles = { "hud", "side" };
@@ -69,6 +73,8 @@ public class PluginSettings
         RunScale = Math.Max(1.2, Math.Min(ParseDouble(line.GetString("run_scale", "2.5"), 2.5), 6));
         RunSeconds = Math.Max(1, Math.Min(ParseDouble(line.GetString("run_seconds", "3"), 3), 10));
         RunStay = Math.Max(10, Math.Min(ParseDouble(line.GetString("run_stay", "180"), 180), 3600));
+        Companion = line.GetString("companion", "true") != "false";
+        CompanionTease = line.GetString("companion_tease", "true") != "false";
         var style = line.GetString("panel_style", "hud");
         PanelStyle = PanelStyles.Contains(style) ? style! : "hud";
         HudRingScale = Math.Max(60, Math.Min(ParseDouble(line.GetString("hud_ring_scale", "100"), 100), 160));
@@ -99,6 +105,8 @@ public class PluginSettings
         line.SetString("run_scale", RunScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("run_seconds", RunSeconds.ToString(CultureInfo.InvariantCulture));
         line.SetString("run_stay", RunStay.ToString(CultureInfo.InvariantCulture));
+        line.SetString("companion", Companion ? "true" : "false");
+        line.SetString("companion_tease", CompanionTease ? "true" : "false");
         line.SetString("panel_style", PanelStyle);
         line.SetString("hud_ring_scale", HudRingScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("hud_ring_offset", HudRingOffsetY.ToString(CultureInfo.InvariantCulture));

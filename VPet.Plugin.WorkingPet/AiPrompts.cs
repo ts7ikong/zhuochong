@@ -161,16 +161,63 @@ public static class AiPrompts
         return sec >= 3600 ? $"{sec / 3600}小时{sec % 3600 / 60}分钟" : $"{Math.Max(1, sec / 60)}分钟";
     }
 
+    // ── 工作 / 摸鱼 判断 ──────────────────────────────────────
+
+    /// <summary>
+    /// 把约 2 分钟内的窗口标题交给 AI, 同时判断状态和总结一句话 (一次调用, 不增加请求数).
+    /// 宠物"陪伴模式"靠 state 决定做工作还是玩耍; summary 只在 work 时有内容, 供日报使用.
+    /// </summary>
+    public static string ActivityPrompt(IEnumerable<string> windowLines, string workBackground) => $@"以下是用户过去约2分钟内依次使用的窗口（进程名 - 标题）：
+{string.Join("\n", windowLines.Select(l => "- " + l))}
+
+【用户工作背景】
+{Background(workBackground)}
+
+请判断用户此刻是在工作还是在摸鱼，只返回JSON，格式：
+{{""state"": ""work"", ""summary"": ""动词+具体内容""}}
+
+state 取值：
+- work：能明确看出在做具体的工作、编程、写文档、处理业务沟通、查阅技术资料等。summary 写成「动词 + 具体内容或项目名」，例如「调试订单系统的登录接口」「编写XX项目技术文档」
+- slack：明显的娱乐、摸鱼，例如视频、游戏、购物、社交闲聊、刷资讯、看小说。summary 留空
+- unknown：无法判断，例如只有桌面、锁屏、泛泛浏览网页、看不出内容。summary 留空
+
+不要猜测；只返回JSON，不要任何解释。";
+
+    /// <summary>解析 ActivityPrompt 的返回. 解析失败一律当 unknown, 不让宠物因为一次坏数据乱动</summary>
+    public static (string State, string Summary) ParseActivity(string raw)
+    {
+        var text = raw.Replace("```json", "").Replace("```", "").Trim();
+        int a = text.IndexOf('{'), b = text.LastIndexOf('}');
+        if (a >= 0 && b > a) text = text[a..(b + 1)];
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            var root = doc.RootElement;
+            string state = root.TryGetProperty("state", out var st) ? (st.GetString() ?? "").Trim().ToLowerInvariant() : "";
+            if (state != "work" && state != "slack") state = "unknown";
+            string summary = state == "work" && root.TryGetProperty("summary", out var sm)
+                ? (sm.GetString() ?? "").Trim().Trim('"', '「', '」', '“', '”')
+                : "";
+            return (state, summary);
+        }
+        catch (JsonException)
+        {
+            return ("unknown", "");
+        }
+    }
+
     // ── 意图识别 ─────────────────────────────────────────────
 
-    public static string IntentSystemPrompt(DateTime now, int todayCount) => $@"你是一个桌面宠物助手，帮用户记录工作和生成周报。
+    /// <param name="petInfo">宠物此刻的状态 (名字/等级/心情/饥渴/在做什么/主人的状态), 让回复带上宠物自己的口吻</param>
+    public static string IntentSystemPrompt(DateTime now, int todayCount, string petInfo) => $@"你是主人的桌面宠物，同时帮主人记录工作和生成周报。
 今天是{now:yyyy年MM月dd日}，今天已有{todayCount}条工作记录。
+{(string.IsNullOrWhiteSpace(petInfo) ? "" : "你现在的状态：" + petInfo + "\n闲聊回复要以宠物自己的口吻，并可以自然地结合这些状态（饿了就撒娇要吃的、累了就喊累、主人在摸鱼可以调皮地提醒），但不要罗列数据。")}
 
 根据用户输入判断意图，只返回JSON，格式：
 - 记录工作内容：{{""intent"": ""record"", ""content"": ""提炼后的工作内容""}}
 - 生成/发送周报：{{""intent"": ""generate_report"", ""content"": """"}}
 - 打开钉钉：{{""intent"": ""open_dingtalk"", ""content"": """"}}
-- 其他对话：{{""intent"": ""chat"", ""content"": ""简短回复，不超过30字，口语化，可爱一点""}}
+- 其他对话：{{""intent"": ""chat"", ""content"": ""简短回复，不超过30字，口语化，可爱一点，像宠物在说话""}}
 
 只返回JSON，不要任何解释。";
 

@@ -14,7 +14,9 @@ public class ActivityCollector
 {
     private const double IdleLimitSeconds = 300;
     private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan SummaryInterval = TimeSpan.FromMinutes(2);
+    /// <summary>每条活动摘要代表的分钟数 (统计工作/摸鱼时长用)</summary>
+    public const int SummaryMinutes = 2;
+    private static readonly TimeSpan SummaryInterval = TimeSpan.FromMinutes(SummaryMinutes);
     private static readonly TimeSpan FlushInterval = TimeSpan.FromMinutes(5);
 
     private readonly AiConfig cfg;
@@ -35,6 +37,9 @@ public class ActivityCollector
     private int visionFailures;
     private DateTime day = DateTime.MinValue;
     private Dictionary<string, double> usage = new();
+
+    /// <summary>每次 AI 给出判断后触发: "work" / "slack" / "unknown". 在线程池线程上触发, 订阅方自己切回 UI 线程</summary>
+    public event Action<string>? StateClassified;
 
     public ActivityCollector(AiConfig cfg, ActivityStore store, Dispatcher dispatcher)
     {
@@ -155,26 +160,14 @@ public class ActivityCollector
         }
         if (lines.Count > 12) lines = lines.GetRange(lines.Count - 12, 12);
 
-        string summary = "";
+        string summary = "", state = "";
         if (cfg.IsConfigured)
         {
             await summaryGate.WaitAsync();
             try
             {
-                var prompt = $@"以下是用户过去约2分钟内依次使用的窗口（进程名 - 标题）：
-{string.Join("\n", lines.Select(l => "- " + l))}
-
-【用户工作背景】
-{(string.IsNullOrWhiteSpace(cfg.WorkBackground) ? "（未填写）" : cfg.WorkBackground.Trim())}
-
-判断用户在做什么，格式：动词 + 具体内容或项目名，例如「调试订单系统的登录接口」「编写XX项目技术文档」。
-规则：
-- 只有能从窗口信息中明确推断出具体工作内容时才输出
-- 娱乐、视频、游戏、购物、社交闲聊、泛泛浏览网页一律返回空字符串
-- 无法确定就返回空字符串，不得猜测或补全
-只输出结果，不确定就输出空字符串，不加任何解释。";
-                var result = await DoubaoClient.ChatAsync(cfg, new[] { ("user", prompt) }, 80);
-                summary = result.Trim().Trim('"', '「', '」', '“', '”');
+                var raw = await DoubaoClient.ChatAsync(cfg, new[] { ("user", AiPrompts.ActivityPrompt(lines, cfg.WorkBackground)) }, 120);
+                (state, summary) = AiPrompts.ParseActivity(raw);
             }
             catch (Exception e)
             {
@@ -188,11 +181,17 @@ public class ActivityCollector
 
         try
         {
-            store.AppendActivity(at, new ActivityEntry { Time = at.ToString("HH:mm"), Summary = summary, Titles = lines });
+            store.AppendActivity(at, new ActivityEntry { Time = at.ToString("HH:mm"), Summary = summary, State = state, Titles = lines });
         }
         catch (Exception e)
         {
             DebugLog.Write("写活动摘要失败: " + e.Message);
+        }
+
+        if (state.Length > 0)
+        {
+            try { StateClassified?.Invoke(state); }
+            catch (Exception e) { DebugLog.Write("处理状态判断失败: " + e.Message); }
         }
     }
 

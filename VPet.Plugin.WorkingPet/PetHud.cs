@@ -158,8 +158,6 @@ public class PetHud : Window, IPetPanel
         ringR = RingR * Math.Max(0.6, Math.Min(settings.HudRingScale / 100.0, 1.6));
         ringCy = RingCy + Math.Max(-100, Math.Min(settings.HudRingOffsetY, 100));
         double cx = RingCx, cy = ringCy, R = ringR;
-        border1 = null!; // 卡片描边渐变的色标, 重建时重新创建
-        border2 = null!;
 
         Width = CanvasW * s;
         Height = CanvasH * s;
@@ -230,12 +228,25 @@ public class PetHud : Window, IPetPanel
         tDate.VerticalAlignment = VerticalAlignment.Center;
         Put(pill, X(150), Y(ringTop - 32));
 
-        // 环内右侧的百分比
-        tPercent = Text("0%", 46, DisplayFont, FontWeights.Black, new LinearGradientBrush(Colors.White, (Color)ColorConverter.ConvertFromString("#D9CCFF"), 90), 130);
+        // 环上 3 点钟位置的深色百分比牌: 深底白字, 在任何桌面背景下都看得清; 压在环的外沿, 不碰宠物/时钟/卡片
+        border1 = new GradientStop(Colors.White, 0);
+        border2 = new GradientStop(Colors.White, 1);
+        tPercent = Text("0%", 30, DisplayFont, FontWeights.Black, Brushes.White, 104);
         tPercent.Effect = textGlow;
-        PlaceText(tPercent, cx + R * 0.68, cy - 16, 46);
-        tPercentCap = Text("今日进度", 15, TextFont, FontWeights.SemiBold, new SolidColorBrush(Color.FromArgb(0xDD, 0xE8, 0xE4, 0xFF)), 130);
-        PlaceText(tPercentCap, cx + R * 0.68, cy + 22, 15);
+        tPercentCap = Text("今日进度", 12, TextFont, FontWeights.SemiBold, new SolidColorBrush(Color.FromArgb(0xE6, 0xD8, 0xE0, 0xFF)), 104);
+        var pillStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        pillStack.Children.Add(tPercent);
+        pillStack.Children.Add(tPercentCap);
+        var percentPill = new Border
+        {
+            Width = 104 * s, Height = 60 * s, CornerRadius = new CornerRadius(18 * s),
+            Background = new LinearGradientBrush(Color.FromArgb(0xE8, 0x1B, 0x22, 0x52), Color.FromArgb(0xE8, 0x2B, 0x2F, 0x6B), 90),
+            BorderBrush = new LinearGradientBrush(new GradientStopCollection { border1, border2 }, 20),
+            BorderThickness = new Thickness(2 * s),
+            Child = pillStack,
+            Effect = cardGlow,
+        };
+        Put(percentPill, X(cx + R - 52), Y(cy - 30));
 
         // 脚边两张卡片
         tWorked = BuildCard(-30, 355, "⏱", "已工作", right: false, out cardL1, out cardL2);
@@ -258,11 +269,6 @@ public class PetHud : Window, IPetPanel
 
         c1 = new GradientStop(Colors.Gray, 0);
         c2 = new GradientStop(Colors.Gray, 1);
-        if (border1 == null)
-        {
-            border1 = new GradientStop(Colors.White, 0);
-            border2 = new GradientStop(Colors.White, 1);
-        }
         var card = new Border
         {
             Width = 180 * s, Height = 95 * s, CornerRadius = new CornerRadius(20 * s),

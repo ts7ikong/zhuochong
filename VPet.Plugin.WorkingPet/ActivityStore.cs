@@ -18,6 +18,8 @@ public class ActivityEntry
 {
     [JsonPropertyName("time")] public string Time { get; set; } = "";
     [JsonPropertyName("summary")] public string Summary { get; set; } = "";
+    /// <summary>AI 对这段时间的判断: work 工作 / slack 摸鱼 / unknown 无法判断 (旧数据没有这个字段, 为空)</summary>
+    [JsonPropertyName("state")] public string State { get; set; } = "";
     [JsonPropertyName("titles")] public List<string> Titles { get; set; } = new();
 }
 
@@ -111,6 +113,26 @@ public class ActivityStore
             DebugLog.Write("读取应用时长失败: " + e.Message);
         }
         return new();
+    }
+
+    /// <summary>
+    /// 当天"工作 / 摸鱼 / 无法判断"各多少分钟. 每条活动摘要约代表 ActivityCollector.SummaryMinutes 分钟
+    /// (人离开电脑的时段不会产生记录, 所以不计入), 是个估算值.
+    /// </summary>
+    public (int Work, int Slack, int Unknown) DayStats(DateTime day)
+    {
+        int work = 0, slack = 0, unknown = 0;
+        foreach (var e in ReadActivity(day))
+        {
+            switch (e.State)
+            {
+                case "work": work++; break;
+                case "slack": slack++; break;
+                default: unknown++; break;
+            }
+        }
+        int m = ActivityCollector.SummaryMinutes;
+        return (work * m, slack * m, unknown * m);
     }
 
     /// <summary>当天所有电脑的应用时长之和</summary>

@@ -15,6 +15,8 @@ public class SettingsWindow : Window
     private readonly ComboBox offWork = new(), preAction = new();
     private readonly TextBox runScale = new(), runSeconds = new(), runStay = new();
     private readonly CheckBox sleepAfter = new() { Content = "跑回去之后直接睡觉" };
+    private readonly CheckBox companion = new() { Content = "陪伴模式：宠物跟着我工作/摸鱼/下班" };
+    private readonly CheckBox tease = new() { Content = "摸鱼太久时宠物调侃我" };
     private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
     private static readonly string[] PanelStyleLabels = { "环绕宠物（时钟 + 进度环 + 卡片）", "侧边面板" };
     private readonly ComboBox panelStyle = new();
@@ -46,6 +48,8 @@ public class SettingsWindow : Window
         foreach (var l in OffWorkLabels) offWork.Items.Add(l);
         foreach (var l in PreLabels) preAction.Items.Add(l);
         preAction.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.PreActions, settings.PreAction));
+        companion.IsChecked = settings.Companion;
+        tease.IsChecked = settings.CompanionTease;
         countdown.IsChecked = settings.OffWorkCountdown;
         sleepAfter.IsChecked = settings.SleepAfterRun;
         runScale.Text = settings.RunScale.ToString("0.0#", CultureInfo.InvariantCulture);
@@ -66,6 +70,8 @@ public class SettingsWindow : Window
         AddRow(grid, "上午下班 (HH:MM)", amEnd);
         AddRow(grid, "下午上班 (HH:MM)", pmStart);
         AddRow(grid, "下午下班 (HH:MM)", pmEnd);
+        AddRow(grid, "", companion);
+        AddRow(grid, "", tease);
         AddRow(grid, "", countdown);
         AddRow(grid, "倒数期间动作", preAction);
         AddRow(grid, "到点下班时宠物", offWork);
@@ -151,6 +157,8 @@ public class SettingsWindow : Window
             settings.OffWorkAction = PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)];
             settings.PreAction = PluginSettings.PreActions[Math.Max(0, preAction.SelectedIndex)];
             settings.OffWorkCountdown = countdown.IsChecked == true;
+            settings.Companion = companion.IsChecked == true;
+            settings.CompanionTease = tease.IsChecked == true;
             settings.RunScale = ro.Scale;
             settings.RunSeconds = ro.Seconds;
             settings.RunStay = ro.StaySeconds;

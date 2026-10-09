@@ -45,6 +45,15 @@ public class OffWorkController
         timer = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher) { Interval = TimeSpan.FromMilliseconds(250) };
     }
 
+    /// <summary>下班倒计时/跑到屏幕中央 (含预览) 正在进行, 陪伴模式此时不要插手</summary>
+    public bool IsSequenceActive => run.IsActive || previewTimer != null || (!IsOvertimeToday && !finished && shown < 4);
+
+    /// <summary>今天的下班动作已经做完</summary>
+    public bool FinishedToday => finished;
+
+    /// <summary>今天点了"今天加班"</summary>
+    public bool IsOvertimeToday => cancelledDay == WorkLogStore.DayKey(DateTime.Now);
+
     public void Start()
     {
         timer.Tick += (_, _) => Tick();
@@ -61,7 +70,7 @@ public class OffWorkController
 
     public OffWorkHooks CreateHooks() => new()
     {
-        PreviewFinal = (action, ro) => { DebugLog.Write($"预览(只看下班动作) action={action}"); Final(action, FinalText, ro); },
+        PreviewFinal = (action, ro) => { DebugLog.Write($"预览(只看下班动作) action={action}"); ReleasePet(); Final(action, FinalText, ro); },
         PreviewSequence = PreviewSequence,
     };
 
@@ -101,6 +110,7 @@ public class OffWorkController
             if (remaining <= 0 && remaining > -300)
             {
                 finished = true;
+                ReleasePet();
                 Final(settings.OffWorkAction, FinalText, settings.Run);
             }
             return;
@@ -113,7 +123,11 @@ public class OffWorkController
             int n = (int)Math.Ceiling(remaining);
             if (n < shown)
             {
-                if (shown == 4) StartPre(settings.PreAction);
+                if (shown == 4)
+                {
+                    ReleasePet();
+                    StartPre(settings.PreAction);
+                }
                 ShowCount(n, preview: false);
                 shown = n;
             }
@@ -130,6 +144,7 @@ public class OffWorkController
     private void PreviewSequence(string pre, string action, RunOptions ro)
     {
         DebugLog.Write($"预览(完整流程) pre={pre} action={action}");
+        ReleasePet();
         previewTimer?.Stop();
         StartPre(pre);
         int n = 3;
@@ -153,6 +168,24 @@ public class OffWorkController
     }
 
     // ── 两段动作 ─────────────────────────────────────────────
+
+    /// <summary>
+    /// 下班流程开始前, 让宠物放下手头的工作/学习/玩耍 (陪伴模式或你自己开的都一样).
+    /// 活动里已经产出的金钱/经验是实时结算的, 中途停止不会丢.
+    /// </summary>
+    private void ReleasePet()
+    {
+        try
+        {
+            var main = mw.Main;
+            if (main.State == VPet_Simulator.Core.Main.WorkingState.Work)
+                main.WorkTimer.Stop(() => { }, WorkTimer.FinishWorkInfo.StopReason.Other);
+        }
+        catch (Exception e)
+        {
+            DebugLog.Write("下班前停止活动失败: " + e.Message);
+        }
+    }
 
     /// <summary>
     /// 宠物当前能不能被打断去做动作. 待机/走路/说话这类随机动作都可以打断,
