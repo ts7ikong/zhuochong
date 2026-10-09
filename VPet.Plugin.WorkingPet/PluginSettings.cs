@@ -37,7 +37,7 @@ public class PluginSettings
     public bool CompanionTease { get; set; } = true;
     /// <summary>面板样式: hud=环绕宠物 / side=侧边面板</summary>
     public string PanelStyle { get; set; } = "hud";
-    public static readonly string[] PanelStyles = { "hud", "side" };
+    public static readonly string[] PanelStyles = { "hud", "side", "tech" };
     /// <summary>环绕样式: 进度环大小百分比 (60-160) / 环上下位置微调 (-100..100 单位, 正数往下)</summary>
     public double HudRingScale { get; set; } = 100;
     public double HudRingOffsetY { get; set; } = 0;

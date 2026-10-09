@@ -18,7 +18,7 @@ public class SettingsWindow : Window
     private readonly CheckBox companion = new() { Content = "陪伴模式：宠物跟着我工作/摸鱼/下班" };
     private readonly CheckBox tease = new() { Content = "摸鱼太久时宠物调侃我" };
     private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
-    private static readonly string[] PanelStyleLabels = { "环绕宠物（时钟 + 进度环 + 卡片）", "侧边面板" };
+    private static readonly string[] PanelStyleLabels = { "环绕宠物（时钟 + 进度环 + 卡片）", "侧边面板", "科幻面板（贴图设计）" };
     private readonly ComboBox panelStyle = new();
     private readonly TextBox ringScale = new(), ringOffset = new();
     private readonly TextBox scale = new(), opacity = new();

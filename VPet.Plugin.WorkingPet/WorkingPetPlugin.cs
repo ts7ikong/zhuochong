@@ -203,7 +203,12 @@ public class WorkingPetPlugin : MainPlugin
             if (panel == null)
             {
                 var pet = Window.GetWindow(MW.Main);
-                panel = settings.PanelStyle == "side" ? new PetPanel(settings, pet) : new PetHud(settings, pet);
+                panel = settings.PanelStyle switch
+                {
+                    "side" => new PetPanel(settings, pet),
+                    "tech" => new TechHud(settings, pet),
+                    _ => new PetHud(settings, pet),
+                };
                 ((IPetPanel)panel).ApplyPosition();
                 var created = panel;
                 created.Closed += (_, _) => { if (panel == created) panel = null; };
