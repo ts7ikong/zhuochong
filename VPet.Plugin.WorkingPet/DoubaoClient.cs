@@ -31,8 +31,16 @@ public static class DoubaoClient
     /// <summary>
     /// 带一张图片的提问 (OpenAI 兼容的 image_url 格式). 需要你的推理接入点背后是支持图片的模型.
     /// </summary>
-    public static Task<string> ChatVisionAsync(AiConfig cfg, string prompt, string imageJpegBase64, int maxTokens = 150)
+    public static Task<string> ChatVisionAsync(AiConfig cfg, string prompt, string imageJpegBase64, int maxTokens = 150) =>
+        ChatVisionAsync(cfg, prompt, new[] { imageJpegBase64 }, maxTokens);
+
+    /// <summary>带多张图片 (比如多块屏幕各一张), 图片按顺序排在文字前面</summary>
+    public static Task<string> ChatVisionAsync(AiConfig cfg, string prompt, IReadOnlyList<string> imagesJpegBase64, int maxTokens = 150)
     {
+        var content = new List<object>();
+        foreach (var img in imagesJpegBase64)
+            content.Add(new { type = "image_url", image_url = new { url = "data:image/jpeg;base64," + img } });
+        content.Add(new { type = "text", text = prompt });
         var payload = JsonSerializer.Serialize(new
         {
             model = cfg.EndpointId.Trim(),
@@ -42,11 +50,7 @@ public static class DoubaoClient
                 new
                 {
                     role = "user",
-                    content = new object[]
-                    {
-                        new { type = "image_url", image_url = new { url = "data:image/jpeg;base64," + imageJpegBase64 } },
-                        new { type = "text", text = prompt },
-                    },
+                    content,
                 },
             },
         });

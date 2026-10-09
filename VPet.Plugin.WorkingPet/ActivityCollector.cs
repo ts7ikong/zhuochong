@@ -202,14 +202,17 @@ public class ActivityCollector
         if (!await visionGate.WaitAsync(0)) return; // 上一次还没结束
         try
         {
-            var image = ScreenCapture.CaptureJpegBase64();
-            if (image == null) return;
-            var text = await DoubaoClient.ChatVisionAsync(cfg,
-                "请观察这张屏幕截图，用一句话（不超过40字）如实描述用户正在做什么，" +
-                "例如「正在编写Java订单模块代码」「正在阅读需求文档」「正在看视频」。" +
-                "只输出这一句话，不加任何前缀或解释。", image, 150);
-            text = text.Trim();
-            if (text.Length > 0)
+            var images = ScreenCapture.CaptureAllJpegBase64();
+            if (images.Count == 0) return;
+            var prompt = images.Count == 1
+                ? "请观察这张屏幕截图，用一句话（不超过40字）如实描述用户正在做什么，"
+                : $"这是用户的 {images.Count} 块显示器截图（按从左到右的顺序），请综合观察，用一句话（不超过60字）如实描述用户正在做什么，" +
+                  "如果多块屏幕上各有不同的事，简要都提到，";
+            prompt += "例如「正在编写Java订单模块代码」「正在阅读需求文档」「正在看视频」。" +
+                      "如果所有屏幕都只是桌面、锁屏或看不出任何具体操作，只输出「无」。" +
+                      "只输出这一句话，不加任何前缀或解释。";
+            var text = (await DoubaoClient.ChatVisionAsync(cfg, prompt, images, 200)).Trim();
+            if (text.Length > 0 && text.TrimEnd('。', '.') != "无")
                 store.AppendVision(at, new VisionEntry { Time = at.ToString("HH:mm"), Description = text });
             visionFailures = 0;
         }
