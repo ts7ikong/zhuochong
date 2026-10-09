@@ -16,7 +16,7 @@ namespace VPet.Plugin.WorkingPet;
 /// 状态不同配色不同 (上班/午休/未上班/下班), 下班后发光脉冲.
 /// 开启"跟随宠物"时贴在宠物窗口旁边, 否则可自由拖动.
 /// </summary>
-public class PetPanel : Window
+public class PetPanel : Window, IPetPanel
 {
     /// <summary>某个状态下的整套配色</summary>
     private record Theme(string Bg1, string Bg2, string Accent1, string Accent2, string Sub, bool Pulse);

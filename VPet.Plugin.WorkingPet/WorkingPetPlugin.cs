@@ -15,7 +15,7 @@ public class WorkingPetPlugin : MainPlugin
     public override string PluginName => "WorkingPet";
 
     private readonly PluginSettings settings = new();
-    private PetPanel? panel;
+    private Window? panel; // PetHud (环绕宠物) 或 PetPanel (侧边面板), 都实现了 IPetPanel
     private DispatcherTimer? reminderTimer;
     private WorkLogStore? store;
     private WorkLogWindow? logWindow;
@@ -91,7 +91,7 @@ public class WorkingPetPlugin : MainPlugin
         var win = new SettingsWindow(settings, () =>
         {
             ApplyPanelVisibility();
-            panel?.Refresh();
+            RebuildPanel(); // 样式/大小等可能变了, 重建面板
             fired.Clear(); // 改了时间后允许重新提醒
         }, () => ai?.OpenSettings(), offWork?.CreateHooks());
         win.Closed += (_, _) => MW.Windows.Remove(win);
@@ -151,15 +151,26 @@ public class WorkingPetPlugin : MainPlugin
         panel = null;
     }
 
+    /// <summary>关掉旧面板并按当前设置重新创建 (切换样式时用)</summary>
+    private void RebuildPanel()
+    {
+        panel?.Close();
+        panel = null;
+        ApplyPanelVisibility();
+        (panel as IPetPanel)?.Refresh();
+    }
+
     private void ApplyPanelVisibility()
     {
         if (settings.ShowPanel)
         {
             if (panel == null)
             {
-                panel = new PetPanel(settings, Window.GetWindow(MW.Main));
-                panel.ApplyPosition();
-                panel.Closed += (_, _) => panel = null;
+                var pet = Window.GetWindow(MW.Main);
+                panel = settings.PanelStyle == "side" ? new PetPanel(settings, pet) : new PetHud(settings, pet);
+                ((IPetPanel)panel).ApplyPosition();
+                var created = panel;
+                created.Closed += (_, _) => { if (panel == created) panel = null; };
             }
             panel.Show();
         }

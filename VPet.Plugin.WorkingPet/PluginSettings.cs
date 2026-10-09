@@ -31,6 +31,12 @@ public class PluginSettings
     /// <summary>跑回原位之后直接睡觉 (否则恢复待机)</summary>
     public bool SleepAfterRun { get; set; } = true;
     public RunOptions Run => new(RunScale, RunSeconds, RunStay, SleepAfterRun);
+    /// <summary>面板样式: hud=环绕宠物 / side=侧边面板</summary>
+    public string PanelStyle { get; set; } = "hud";
+    public static readonly string[] PanelStyles = { "hud", "side" };
+    /// <summary>环绕样式: 进度环大小百分比 (60-160) / 环上下位置微调 (-100..100 单位, 正数往下)</summary>
+    public double HudRingScale { get; set; } = 100;
+    public double HudRingOffsetY { get; set; } = 0;
     /// <summary>面板大小百分比, 100 为默认</summary>
     public double PanelScale { get; set; } = 100;
     /// <summary>面板整体不透明度百分比 20~100</summary>
@@ -63,6 +69,10 @@ public class PluginSettings
         RunScale = Math.Max(1.2, Math.Min(ParseDouble(line.GetString("run_scale", "2.5"), 2.5), 6));
         RunSeconds = Math.Max(1, Math.Min(ParseDouble(line.GetString("run_seconds", "3"), 3), 10));
         RunStay = Math.Max(10, Math.Min(ParseDouble(line.GetString("run_stay", "180"), 180), 3600));
+        var style = line.GetString("panel_style", "hud");
+        PanelStyle = PanelStyles.Contains(style) ? style! : "hud";
+        HudRingScale = Math.Max(60, Math.Min(ParseDouble(line.GetString("hud_ring_scale", "100"), 100), 160));
+        HudRingOffsetY = Math.Max(-100, Math.Min(ParseDouble(line.GetString("hud_ring_offset", "0"), 0), 100));
         var pre = line.GetString("pre_action", "think");
         PreAction = PreActions.Contains(pre) ? pre! : "think";
         OffWorkCountdown = line.GetString("offwork_countdown", "true") != "false";
@@ -89,6 +99,9 @@ public class PluginSettings
         line.SetString("run_scale", RunScale.ToString(CultureInfo.InvariantCulture));
         line.SetString("run_seconds", RunSeconds.ToString(CultureInfo.InvariantCulture));
         line.SetString("run_stay", RunStay.ToString(CultureInfo.InvariantCulture));
+        line.SetString("panel_style", PanelStyle);
+        line.SetString("hud_ring_scale", HudRingScale.ToString(CultureInfo.InvariantCulture));
+        line.SetString("hud_ring_offset", HudRingOffsetY.ToString(CultureInfo.InvariantCulture));
         line.SetString("pre_action", PreAction);
         line.SetString("offwork_countdown", OffWorkCountdown ? "true" : "false");
         line.SetString("panel_opacity", PanelOpacity.ToString(CultureInfo.InvariantCulture));

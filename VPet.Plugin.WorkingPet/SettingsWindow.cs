@@ -16,6 +16,9 @@ public class SettingsWindow : Window
     private readonly TextBox runScale = new(), runSeconds = new(), runStay = new();
     private readonly CheckBox sleepAfter = new() { Content = "跑回去之后直接睡觉" };
     private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
+    private static readonly string[] PanelStyleLabels = { "环绕宠物（时钟 + 进度环 + 卡片）", "侧边面板" };
+    private readonly ComboBox panelStyle = new();
+    private readonly TextBox ringScale = new(), ringOffset = new();
     private readonly TextBox scale = new(), opacity = new();
     private readonly ColorField panelColor = new(), ringColor = new(), glowColor = new();
     private readonly CheckBox showPanel = new() { Content = "显示打工面板" };
@@ -35,6 +38,10 @@ public class SettingsWindow : Window
         amEnd.Text = WorkSchedule.FormatTime(s.AmEnd);
         pmStart.Text = WorkSchedule.FormatTime(s.PmStart);
         pmEnd.Text = WorkSchedule.FormatTime(s.PmEnd);
+        foreach (var l in PanelStyleLabels) panelStyle.Items.Add(l);
+        panelStyle.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.PanelStyles, settings.PanelStyle));
+        ringScale.Text = settings.HudRingScale.ToString("0", CultureInfo.InvariantCulture);
+        ringOffset.Text = settings.HudRingOffsetY.ToString("0", CultureInfo.InvariantCulture);
         scale.Text = settings.PanelScale.ToString("0", CultureInfo.InvariantCulture);
         foreach (var l in OffWorkLabels) offWork.Items.Add(l);
         foreach (var l in PreLabels) preAction.Items.Add(l);
@@ -66,7 +73,10 @@ public class SettingsWindow : Window
         AddRow(grid, "跑到中央·用时(秒)", runSeconds);
         AddRow(grid, "跑到中央·停留(秒)", runStay);
         AddRow(grid, "", sleepAfter);
+        AddRow(grid, "面板样式", panelStyle);
         AddRow(grid, "面板大小 (50-300 %)", scale);
+        AddRow(grid, "环绕·环大小 (60-160 %)", ringScale);
+        AddRow(grid, "环绕·环上下位置 (-100~100)", ringOffset);
         AddRow(grid, "透明度 (20-100 %)", opacity);
         AddRow(grid, "面板颜色", panelColor);
         AddRow(grid, "进度环颜色", ringColor);
@@ -121,6 +131,12 @@ public class SettingsWindow : Window
                     return;
                 }
             }
+            if (!double.TryParse(ringScale.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var rs) || rs < 60 || rs > 160
+                || !double.TryParse(ringOffset.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var ry) || ry < -100 || ry > 100)
+            {
+                MessageBox.Show(this, "环大小请填 60-160，环上下位置请填 -100 到 100", "WorkingPet");
+                return;
+            }
             if (!TryReadRun(out var ro)) return;
             n.AmStart = a1; n.AmEnd = a2; n.PmStart = p1; n.PmEnd = p2;
             if (!n.IsValid(out var err))
@@ -139,6 +155,9 @@ public class SettingsWindow : Window
             settings.RunSeconds = ro.Seconds;
             settings.RunStay = ro.StaySeconds;
             settings.SleepAfterRun = ro.SleepAfter;
+            settings.PanelStyle = PluginSettings.PanelStyles[Math.Max(0, panelStyle.SelectedIndex)];
+            settings.HudRingScale = rs;
+            settings.HudRingOffsetY = ry;
             settings.PanelScale = sc;
             settings.PanelOpacity = op;
             settings.PanelColor = panelColor.Value;
