@@ -65,6 +65,8 @@ public class PetHud : Window, IPetPanel
     private readonly PluginSettings settings;
     private readonly Window? petWindow;
     private readonly DispatcherTimer timer;
+    private readonly TechHud.BackLayer back = new(); // 背层: 光晕/底轨/虚线环/进度弧, 在宠物后面
+    private Canvas? backRoot, target;
 
     private Canvas? root;
     private double s;                 // 单位 → 像素
@@ -96,8 +98,8 @@ public class PetHud : Window, IPetPanel
         SourceInitialized += (_, _) => MakeClickThrough();
         timer = new DispatcherTimer(DispatcherPriority.Normal, Dispatcher) { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => Refresh();
-        Loaded += (_, _) => { Refresh(); timer.Start(); };
-        Closed += (_, _) => timer.Stop();
+        Loaded += (_, _) => { Refresh(); back.Show(); Restack(); timer.Start(); };
+        Closed += (_, _) => { timer.Stop(); back.Close(); };
 
         if (petWindow != null)
         {
@@ -115,7 +117,28 @@ public class PetHud : Window, IPetPanel
         }
     }
 
-    private void SetHidden(bool hide) => Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+    private void SetHidden(bool hide)
+    {
+        Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+        back.Visibility = Visibility;
+        if (!hide) Restack();
+    }
+
+    /// <summary>前层置顶, 背层塞到宠物窗口正后方</summary>
+    private void Restack()
+    {
+        try
+        {
+            var front = new WindowInteropHelper(this).Handle;
+            if (front == IntPtr.Zero) return;
+            WinZ.BringToTop(front);
+            if (petWindow == null) return;
+            var pet = new WindowInteropHelper(petWindow).Handle;
+            var bk = new WindowInteropHelper(back).Handle;
+            if (pet != IntPtr.Zero && bk != IntPtr.Zero) WinZ.PutBehind(bk, pet);
+        }
+        catch (Exception ex) { DebugLog.Write("PetHud.Restack: " + ex.Message); }
+    }
 
     // ── 位置 / 缩放 ───────────────────────────────────────────
 
@@ -154,6 +177,7 @@ public class PetHud : Window, IPetPanel
         }
         Left = cx - (250 - X0) * s;
         Top = cy - (250 - Y0) * s;
+        back.Left = Left; back.Top = Top; back.Width = Width; back.Height = Height;
     }
 
     // ── 界面搭建 ─────────────────────────────────────────────
@@ -174,6 +198,9 @@ public class PetHud : Window, IPetPanel
         Height = CanvasH * s;
         root = new Canvas { Width = Width, Height = Height, IsHitTestVisible = false };
         Content = root;
+        backRoot = new Canvas { Width = Width, Height = Height, IsHitTestVisible = false };
+        back.Content = backRoot;
+        target = backRoot; // 光晕/环/进度弧画在背层
 
         ringGlow = new DropShadowEffect { ShadowDepth = 0, BlurRadius = 24 * s, Opacity = 0.9 };
         textGlow = new DropShadowEffect { ShadowDepth = 0, BlurRadius = 16 * s, Opacity = 0.95 };
@@ -209,7 +236,8 @@ public class PetHud : Window, IPetPanel
             StrokeEndLineCap = PenLineCap.Round,
             Effect = ringGlow,
         };
-        root.Children.Add(arc);
+        backRoot.Children.Add(arc);
+        target = null;     // 其余 (时钟/卡片/点缀) 画在前层
 
         // 点缀: 星光 / 爱心 / 像素小猫
         Sparkle(111, 10, 26, "#D8B8FF");
@@ -304,7 +332,7 @@ public class PetHud : Window, IPetPanel
     {
         Canvas.SetLeft(e, px);
         Canvas.SetTop(e, py);
-        root!.Children.Add(e);
+        (target ?? root)!.Children.Add(e);
     }
 
     private TextBlock Text(string text, double sizeU, FontFamily font, FontWeight weight, Brush fg, double widthU, TextAlignment align = TextAlignment.Center) => new()
@@ -374,6 +402,7 @@ public class PetHud : Window, IPetPanel
     {
         Reposition(); // 兜底: 缩放等变化不一定触发窗口事件
         UpdateContent();
+        Restack();
     }
 
     private void UpdateContent()
@@ -385,6 +414,7 @@ public class PetHud : Window, IPetPanel
 
         Apply(sch.IsOffWork(t) ? Off : sch.IsWorkTime(t) ? Working : t < sch.AmStart ? Before : Lunch);
         Opacity = Math.Max(0.2, Math.Min(settings.PanelOpacity / 100.0, 1));
+        back.Opacity = Opacity;
 
         tClock.Text = now.ToString("HH:mm:ss");
         tDate.Text = now.ToString("M月d日 dddd", CultureInfo.GetCultureInfo("zh-CN"));
