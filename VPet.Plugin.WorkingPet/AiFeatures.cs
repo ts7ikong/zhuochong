@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using VPet_Simulator.Windows.Interface;
 
 namespace VPet.Plugin.WorkingPet;
@@ -14,24 +16,54 @@ public class AiFeatures
     private readonly IMainWindow mw;
     private readonly PluginSettings settings;
     private readonly Func<WorkLogStore> getStore;
-    private readonly WindowTitleSampler sampler;
+    private readonly ActivityCollector collector;
+    private readonly GitSync git = new();
+    private DispatcherTimer? gitTimer;
+    private DateTime lastSyncNotice = DateTime.MinValue;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名)
     private readonly HashSet<string> fired = new();
     private bool busy;
     private AiSettingsWindow? settingsWindow;
 
-    public AiConfig Config { get; } = AiConfig.Load();
+    public AiConfig Config { get; }
 
-    public AiFeatures(IMainWindow mw, PluginSettings settings, Func<WorkLogStore> getStore)
+    /// <summary>采集数据的读写 (窗口记录 / 活动摘要 / 屏幕描述 / 应用时长), 位于数据目录下</summary>
+    public ActivityStore Activity { get; }
+
+    public AiFeatures(IMainWindow mw, PluginSettings settings, AiConfig config, Func<WorkLogStore> getStore)
     {
         this.mw = mw;
         this.settings = settings;
         this.getStore = getStore;
-        sampler = new WindowTitleSampler(() => settings.Schedule, mw.Dispatcher);
+        Config = config;
+        Activity = new ActivityStore(() => DataPaths.Root(Config));
+        collector = new ActivityCollector(Config, Activity, mw.Dispatcher);
     }
 
-    public void Start() => sampler.Start();
-    public void Stop() => sampler.Stop();
+    public void Start()
+    {
+        collector.Start();
+        ApplySyncSettings();
+        if (!Config.CollectNoticeShown && (Config.CollectActivity || Config.CollectVision))
+        {
+            // 第一次启动后台采集时提示一下, 之后不再提示
+            Config.CollectNoticeShown = true;
+            try { Config.Save(); } catch (Exception) { }
+            Say("我开始在后台记录你的窗口活动，并隔一阵子看一眼屏幕、用一句话记下你在做什么（只存文字，不存图片）。数据在「" + DataPaths.Root(Config) + "」，在「AI设置」里可以关闭。");
+        }
+        // 启动 3 分钟后先同步一次, 把别的电脑上的新数据拉下来
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromMinutes(3));
+            if (Config.GitSync) await AutoSyncAsync();
+        });
+    }
+
+    public void Stop()
+    {
+        collector.Stop();
+        gitTimer?.Stop();
+    }
 
     private WorkLogStore Store => getStore();
     private void Say(string text) => mw.Main.SayRnd(text);
@@ -138,7 +170,7 @@ public class AiFeatures
     private Task<string> BuildWeeklyAsync()
     {
         var now = DateTime.Now;
-        var prompt = AiPrompts.BuildWeekly(now, Store.GetWeek(now), Config.WorkBackground);
+        var prompt = AiPrompts.BuildWeekly(now, Store.GetWeek(now), d => Activity.DaySummaries(d), Config.WorkBackground);
         return DoubaoClient.ChatAsync(Config, new[] { ("user", prompt) }, 1200);
     }
 
@@ -179,12 +211,12 @@ public class AiFeatures
         if (!TryBegin()) return;
         Say("正在整理今天的日报草稿…");
         var manual = Store.GetDay(DateTime.Now);
-        var windows = sampler.Today();
+        var data = Activity.Snapshot(DateTime.Today);
         _ = Task.Run(async () =>
         {
             try
             {
-                var prompt = AiPrompts.BuildDaily(DateTime.Now, manual, windows, Config.WorkBackground);
+                var prompt = AiPrompts.BuildDaily(DateTime.Now, manual, data, Config.WorkBackground);
                 var draft = await DoubaoClient.ChatAsync(Config, new[] { ("user", prompt) }, 600);
                 UI(() => ShowDaily(draft));
             }
@@ -242,6 +274,63 @@ public class AiFeatures
         }
     }
 
+    // ── 数据同步 (git) ────────────────────────────────────────
+
+    /// <summary>按当前设置启动/停止定时同步</summary>
+    private void ApplySyncSettings()
+    {
+        gitTimer?.Stop();
+        gitTimer = null;
+        if (!Config.GitSync) return;
+        gitTimer = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher)
+        {
+            Interval = TimeSpan.FromHours(Math.Max(1, Config.GitSyncHours)),
+        };
+        gitTimer.Tick += async (_, _) => await AutoSyncAsync();
+        gitTimer.Start();
+    }
+
+    /// <summary>后台定时同步: 成功不打扰; 失败最多每 12 小时提醒一次, 完整原因写进 debug.log</summary>
+    private async Task AutoSyncAsync()
+    {
+        var result = await git.SyncAsync(DataPaths.Root(Config));
+        DebugLog.Write($"自动同步: ok={result.Ok} {result.Message}");
+        if (result.Ok || DateTime.Now - lastSyncNotice < TimeSpan.FromHours(12)) return;
+        lastSyncNotice = DateTime.Now;
+        UI(() => Say("数据同步失败：" + result.Message));
+    }
+
+    /// <summary>菜单里的"立即同步数据": 无论成败都告诉你结果</summary>
+    public void SyncNow()
+    {
+        if (!Config.GitSync)
+        {
+            Say("还没开启数据同步，请在「AI设置」里勾选「同步到 git」并确认数据目录是私有仓库");
+            return;
+        }
+        Say("正在同步数据…");
+        _ = Task.Run(async () =>
+        {
+            var result = await git.SyncAsync(DataPaths.Root(Config));
+            DebugLog.Write($"手动同步: ok={result.Ok} {result.Message}");
+            UI(() => Say(result.Ok ? "数据已同步 ✓" : "数据同步失败：" + result.Message));
+        });
+    }
+
+    public void OpenDataFolder()
+    {
+        try
+        {
+            var dir = DataPaths.Root(Config);
+            Directory.CreateDirectory(dir);
+            Process.Start(new ProcessStartInfo("explorer.exe", "\"" + dir + "\"") { UseShellExecute = true });
+        }
+        catch (Exception e)
+        {
+            Say("打开数据文件夹失败：" + e.Message);
+        }
+    }
+
     // ── 设置窗口 ──────────────────────────────────────────────
 
     public void OpenSettings()
@@ -251,7 +340,11 @@ public class AiFeatures
             settingsWindow.Activate();
             return;
         }
-        settingsWindow = new AiSettingsWindow(Config, () => fired.Clear());
+        settingsWindow = new AiSettingsWindow(Config, () =>
+        {
+            fired.Clear();
+            ApplySyncSettings();
+        });
         var win = settingsWindow;
         win.Closed += (_, _) => settingsWindow = null;
         WindowTracker.Track(mw, win);

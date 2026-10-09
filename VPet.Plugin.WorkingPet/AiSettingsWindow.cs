@@ -13,6 +13,10 @@ public class AiSettingsWindow : Window
     private readonly TextBox endpoint = new(), apiUrl = new(), remindTime = new(), dingtalk = new();
     private readonly ComboBox remindDay = new();
     private readonly CheckBox dailyConfirm = new() { Content = "下班前 10 分钟弹出日报确认" };
+    private readonly CheckBox collectActivity = new() { Content = "记录窗口活动并总结" };
+    private readonly CheckBox collectVision = new() { Content = "定期看一眼屏幕并描述" };
+    private readonly CheckBox gitSync = new() { Content = "自动同步到 git（需私有仓库）" };
+    private readonly TextBox dataDir = new(), gitHours = new();
     private readonly TextBox background = new()
     {
         AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -35,6 +39,12 @@ public class AiSettingsWindow : Window
         dingtalk.Text = cfg.DingTalkPath;
         background.Text = cfg.WorkBackground;
         dailyConfirm.IsChecked = cfg.DailyConfirm;
+        collectActivity.IsChecked = cfg.CollectActivity;
+        collectVision.IsChecked = cfg.CollectVision;
+        gitSync.IsChecked = cfg.GitSync;
+        dataDir.Text = cfg.DataDir;
+        dataDir.ToolTip = "留空 = " + DataPaths.DefaultRoot;
+        gitHours.Text = cfg.GitSyncHours.ToString();
         foreach (var d in Days) remindDay.Items.Add(d);
         remindDay.SelectedIndex = Math.Max(0, Math.Min(cfg.RemindDay, 6));
 
@@ -49,10 +59,15 @@ public class AiSettingsWindow : Window
         SettingsWindow.AddRow(grid, "钉钉路径 (可留空)", dingtalk);
         SettingsWindow.AddRow(grid, "我的工作背景", background);
         SettingsWindow.AddRow(grid, "", dailyConfirm);
+        SettingsWindow.AddRow(grid, "", collectActivity);
+        SettingsWindow.AddRow(grid, "", collectVision);
+        SettingsWindow.AddRow(grid, "数据目录 (留空=默认)", dataDir);
+        SettingsWindow.AddRow(grid, "", gitSync);
+        SettingsWindow.AddRow(grid, "同步间隔 (小时)", gitHours);
 
         var tip = new TextBlock
         {
-            Text = "Key 只保存在本机 %AppData%\\VPet-WorkingPet\\ai_config.json。生成日报/周报时，你的工作记录和窗口标题会发送到上面配置的接口。",
+            Text = "Key 只保存在本机 %AppData%\\VPet-WorkingPet\\ai_config.json，不会被同步。开启采集后，窗口标题会定期发送到上面配置的接口做总结，截图会上传到接口做描述（图片不保存，只存一句话）。修改数据目录需要重启游戏生效；开启 git 同步前请先把数据目录变成私有仓库的本地副本。",
             TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 8, 0, 0),
         };
         Grid.SetRow(tip, grid.RowDefinitions.Count);
@@ -70,7 +85,13 @@ public class AiSettingsWindow : Window
                 Show("周报提醒时间格式不正确，请填 HH:MM，如 11:00", false);
                 return;
             }
+            if (!int.TryParse(gitHours.Text.Trim(), out var hours) || hours < 1 || hours > 168)
+            {
+                Show("同步间隔请填 1 到 168 之间的整数（小时）", false);
+                return;
+            }
             Apply(cfg);
+            cfg.GitSyncHours = hours;
             try { cfg.Save(); }
             catch (Exception e) { Show("保存失败：" + e.Message, false); return; }
             onSaved();
@@ -99,6 +120,10 @@ public class AiSettingsWindow : Window
         cfg.DingTalkPath = dingtalk.Text.Trim();
         cfg.WorkBackground = background.Text.Trim();
         cfg.DailyConfirm = dailyConfirm.IsChecked == true;
+        cfg.CollectActivity = collectActivity.IsChecked == true;
+        cfg.CollectVision = collectVision.IsChecked == true;
+        cfg.GitSync = gitSync.IsChecked == true;
+        cfg.DataDir = dataDir.Text.Trim();
     }
 
     /// <summary>用当前填写的值(未保存)发一个最小请求, 验证 Key 和接入点是否可用</summary>

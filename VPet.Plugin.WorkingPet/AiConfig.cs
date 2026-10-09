@@ -24,6 +24,20 @@ public class AiConfig
     /// <summary>写进日报/周报提示词里的"我的工作背景", 让 AI 更懂你在做什么</summary>
     [JsonPropertyName("work_background")] public string WorkBackground { get; set; } = "";
 
+    // ── 后台采集 / 数据同步 (本机配置, 不随游戏存档) ──
+
+    /// <summary>数据目录 (工作记录 + 采集数据). 留空 = %AppData%\VPet-WorkingPet\data. 改动后需要重启游戏生效</summary>
+    [JsonPropertyName("data_dir")] public string DataDir { get; set; } = "";
+    /// <summary>记录前台窗口、统计应用使用时长、定期用 AI 总结"你在做什么"</summary>
+    [JsonPropertyName("collect_activity")] public bool CollectActivity { get; set; } = true;
+    /// <summary>每隔 15-30 分钟截一次屏, 让视觉模型用一句话描述 (截图会上传到上面配置的接口, 图片本身不保存)</summary>
+    [JsonPropertyName("collect_vision")] public bool CollectVision { get; set; } = true;
+    /// <summary>把数据目录当 git 仓库, 定期自动 commit + push (仅限私有仓库)</summary>
+    [JsonPropertyName("git_sync")] public bool GitSync { get; set; } = false;
+    [JsonPropertyName("git_sync_hours")] public int GitSyncHours { get; set; } = 6;
+    /// <summary>已经提示过"开始后台采集"了</summary>
+    [JsonPropertyName("collect_notice_shown")] public bool CollectNoticeShown { get; set; } = false;
+
     [JsonIgnore]
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey) && !string.IsNullOrWhiteSpace(EndpointId);
 

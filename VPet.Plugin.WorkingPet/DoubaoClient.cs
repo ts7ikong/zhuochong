@@ -15,17 +15,47 @@ public static class DoubaoClient
 {
     public const string DefaultUrl = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(90) };
 
-    public static async Task<string> ChatAsync(AiConfig cfg, IReadOnlyList<(string Role, string Content)> messages, int maxTokens = 1000)
+    public static Task<string> ChatAsync(AiConfig cfg, IReadOnlyList<(string Role, string Content)> messages, int maxTokens = 1000)
     {
-        var url = string.IsNullOrWhiteSpace(cfg.ApiUrl) ? DefaultUrl : cfg.ApiUrl.Trim();
         var payload = JsonSerializer.Serialize(new
         {
             model = cfg.EndpointId.Trim(),
             max_tokens = maxTokens,
             messages = messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
         });
+        return PostAsync(cfg, payload);
+    }
+
+    /// <summary>
+    /// 带一张图片的提问 (OpenAI 兼容的 image_url 格式). 需要你的推理接入点背后是支持图片的模型.
+    /// </summary>
+    public static Task<string> ChatVisionAsync(AiConfig cfg, string prompt, string imageJpegBase64, int maxTokens = 150)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            model = cfg.EndpointId.Trim(),
+            max_tokens = maxTokens,
+            messages = new[]
+            {
+                new
+                {
+                    role = "user",
+                    content = new object[]
+                    {
+                        new { type = "image_url", image_url = new { url = "data:image/jpeg;base64," + imageJpegBase64 } },
+                        new { type = "text", text = prompt },
+                    },
+                },
+            },
+        });
+        return PostAsync(cfg, payload);
+    }
+
+    private static async Task<string> PostAsync(AiConfig cfg, string payload)
+    {
+        var url = string.IsNullOrWhiteSpace(cfg.ApiUrl) ? DefaultUrl : cfg.ApiUrl.Trim();
 
         for (int attempt = 0; ; attempt++)
         {

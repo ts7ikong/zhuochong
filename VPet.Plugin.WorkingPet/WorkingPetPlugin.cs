@@ -19,20 +19,27 @@ public class WorkingPetPlugin : MainPlugin
     private DispatcherTimer? reminderTimer;
     private WorkLogStore? store;
     private WorkLogWindow? logWindow;
+    private readonly AiConfig config = AiConfig.Load();
     private AiFeatures? ai;
     private OffWorkController? offWork;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名), 对应旧版 _proactive_flags
     private readonly HashSet<string> fired = new();
 
     /// <summary>工作记录存储, 第一次用到时才读文件</summary>
-    private WorkLogStore Store => store ??= new WorkLogStore();
+    private WorkLogStore Store => store ??= CreateStore();
+
+    private WorkLogStore CreateStore()
+    {
+        DataPaths.MigrateLegacyWorkLog(config);
+        return new WorkLogStore(DataPaths.WorkLog(config));
+    }
 
     public WorkingPetPlugin(IMainWindow mainwin) : base(mainwin) { }
 
     public override void GameLoaded()
     {
         settings.Load(MW.GameSavesData.Data);
-        ai = new AiFeatures(MW, settings, () => Store);
+        ai = new AiFeatures(MW, settings, config, () => Store);
         offWork = new OffWorkController(MW, settings);
         MW.Dispatcher.Invoke(() =>
         {
@@ -71,6 +78,8 @@ public class WorkingPetPlugin : MainPlugin
         Add("生成周报", () => ai?.GenerateWeekly());
         Add("预览日报", () => ai?.DailyConfirm());
         Add("打开钉钉", () => ai?.LaunchDingTalk());
+        Add("立即同步数据", () => ai?.SyncNow());
+        Add("打开数据文件夹", () => ai?.OpenDataFolder());
         Add("AI设置", () => ai?.OpenSettings());
         Add("打工设置", Setting);
 

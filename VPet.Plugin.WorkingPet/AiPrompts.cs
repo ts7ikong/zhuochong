@@ -28,18 +28,52 @@ public static class AiPrompts
 
     // ── 日报 ─────────────────────────────────────────────────
 
-    public static string BuildDaily(DateTime now, IEnumerable<WorkEntry> manual,
-        IEnumerable<(string Time, string Title)> windows, string workBackground)
+    /// <summary>
+    /// 日报提示词. 数据来源按可信度: 手动记录 &gt; AI 活动摘要 &gt; 屏幕描述 &gt; 应用时长 &gt; 窗口标题.
+    /// 娱乐/闲聊等内容不在采集时过滤, 统一在这里交给 AI 判断剔除.
+    /// </summary>
+    public static string BuildDaily(DateTime now, IEnumerable<WorkEntry> manual, DaySnapshot data, string workBackground)
     {
         var manualText = JoinLines(manual.Select(e => $"  {e.Time} - {e.Content}"), "（无手动记录）");
-        var windowText = JoinLines(windows.Select(w => $"  {w.Time} [窗口标题] {w.Title}"), "（无窗口记录）");
+
+        var summaries = new List<string>();
+        string? prev = null;
+        foreach (var e in data.Activity)
+        {
+            var sm = e.Summary.Trim();
+            if (sm.Length == 0 || sm == prev) continue;
+            summaries.Add($"  {e.Time} - {sm}");
+            prev = sm;
+        }
+        var activityText = JoinLines(Tail(summaries, 80), "（无活动摘要）");
+
+        var visionText = JoinLines(Tail(data.Vision.Select(v => $"  {v.Time} - {v.Description}").ToList(), 40), "（无屏幕描述）");
+
+        var appsText = JoinLines(data.Apps.Take(10).Select(a => $"  {a.Key}  {Duration(a.Value)}"), "（无应用使用记录）");
+
+        var titles = new List<string>();
+        foreach (var t in data.Titles)
+        {
+            var line = t.Title.Length > 0 ? $"  {t.Time[..Math.Min(5, t.Time.Length)]} {t.Process} - {t.Title}" : $"  {t.Time[..Math.Min(5, t.Time.Length)]} {t.Process}";
+            if (titles.Count == 0 || titles[^1] != line) titles.Add(line);
+        }
+        var windowText = JoinLines(Tail(titles, 60), "（无窗口记录）");
 
         return $@"今天是{now:yyyy年MM月dd日}，以下是用户今天的工作数据：
 
 【用户手动记录（最权威，优先采用）】
 {manualText}
 
-【窗口标题记录（每5分钟采样，仅供参考）】
+【AI 活动摘要（每2分钟由AI根据窗口标题总结，可信度较高）】
+{activityText}
+
+【屏幕描述（每15-30分钟看一眼屏幕的一句话描述，仅供参考）】
+{visionText}
+
+【今日应用使用时长（前10，人离开电脑的时间不计）】
+{appsText}
+
+【窗口标题记录（仅供参考，只列出最近部分）】
 {windowText}
 
 请根据以上信息，提取今天实际完成的工作，生成日报草稿。
@@ -53,10 +87,11 @@ public static class AiPrompts
 - 游戏、游戏Wiki/攻略/论坛等娱乐内容
 - 刷视频、看新闻、网购等个人行为
 - 任何明显的非工作、非编程、非技术类活动
+- 以上数据都是自动采集的，里面会混有大量娱乐和个人内容，请你自己判断并剔除
 
 【输出要求】
 - 每条工作一行，用""-""开头
-- 优先采用「用户手动记录」的内容，窗口标题仅用于补充手动记录未覆盖的工作
+- 优先采用「用户手动记录」的内容；其次是活动摘要；屏幕描述、应用时长、窗口标题只用于补充和佐证
 - 格式：动词 + 项目/系统名 + 具体内容，语言简洁准确
 - 合并同类项，去除重复，不逐条罗列
 - 只输出工作条目，不加标题、日期、总结句、解释
@@ -72,7 +107,9 @@ public static class AiPrompts
     // ── 周报 ─────────────────────────────────────────────────
 
     /// <param name="week">本周有记录的日期 → 条目, 见 WorkLogStore.GetWeek</param>
-    public static string BuildWeekly(DateTime now, IReadOnlyDictionary<string, List<WorkEntry>> week, string workBackground)
+    /// <param name="activityFallback">某天没有手动记录/日报时, 用这一天的 AI 活动摘要兜底 (与旧版一致)</param>
+    public static string BuildWeekly(DateTime now, IReadOnlyDictionary<string, List<WorkEntry>> week,
+        Func<DateTime, IReadOnlyList<string>> activityFallback, string workBackground)
     {
         var monday = now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7));
         var blocks = new List<string>();
@@ -80,8 +117,14 @@ public static class AiPrompts
         {
             var key = WorkLogStore.DayKey(d);
             var label = $"【{key} 周{WeekNames[((int)d.DayOfWeek + 6) % 7]}】";
-            blocks.Add(week.TryGetValue(key, out var entries) && entries.Count > 0
-                ? label + "\n" + string.Join("\n", entries.Select(e => $"  {e.Time} {e.Content}"))
+            if (week.TryGetValue(key, out var entries) && entries.Count > 0)
+            {
+                blocks.Add(label + "\n" + string.Join("\n", entries.Select(e => $"  {e.Time} {e.Content}")));
+                continue;
+            }
+            var fallback = activityFallback(d);
+            blocks.Add(fallback.Count > 0
+                ? label + "（来自活动记录，供参考）\n" + string.Join("\n", fallback.Select(x => "  " + x))
                 : label + "\n  （无记录）");
         }
 
@@ -105,7 +148,17 @@ public static class AiPrompts
 
 本周时间范围：{start} - {end}
 今天是{end}，星期{weekday}。
+注意：标注「来自活动记录」的内容是自动采集的，请严格过滤非工作内容，合理归纳，不要原样照抄。
 只输出周报正文，不要加任何解释。";
+    }
+
+    private static List<string> Tail(List<string> list, int max) =>
+        list.Count <= max ? list : list.GetRange(list.Count - max, max);
+
+    private static string Duration(double seconds)
+    {
+        int sec = (int)seconds;
+        return sec >= 3600 ? $"{sec / 3600}小时{sec % 3600 / 60}分钟" : $"{Math.Max(1, sec / 60)}分钟";
     }
 
     // ── 意图识别 ─────────────────────────────────────────────
