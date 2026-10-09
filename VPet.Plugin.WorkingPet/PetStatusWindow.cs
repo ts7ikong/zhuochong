@@ -49,7 +49,7 @@ public class PetStatusWindow : Window
             ("like", "好感度", "#FFD76A"),
         })
         {
-            var bar = new ProgressBar { Height = 12, Maximum = 100, Foreground = Brush(color), Background = Br("#262A4A"), BorderThickness = new Thickness(0) };
+            var bar = new ProgressBar { Height = 12, Maximum = 100, Foreground = Br(color), Background = Br("#262A4A"), BorderThickness = new Thickness(0) };
             var value = Lbl(12, FontWeights.Normal, "#9FB4E8");
             value.Width = 90;
             value.TextAlignment = TextAlignment.Right;
@@ -133,7 +133,7 @@ public class PetStatusWindow : Window
 
     private static TextBlock Lbl(double size, FontWeight weight, string color) => new()
     {
-        FontSize = size, FontWeight = weight, Foreground = Brush(color), VerticalAlignment = VerticalAlignment.Center,
+        FontSize = size, FontWeight = weight, Foreground = Br(color), VerticalAlignment = VerticalAlignment.Center,
     };
 
     private static SolidColorBrush Br(string hex) => new((Color)ColorConverter.ConvertFromString(hex));
