@@ -32,8 +32,11 @@ public class AiConfig
     [JsonPropertyName("collect_activity")] public bool CollectActivity { get; set; } = true;
     /// <summary>每隔 15-30 分钟截一次屏, 让视觉模型用一句话描述 (截图会上传到上面配置的接口, 图片本身不保存)</summary>
     [JsonPropertyName("collect_vision")] public bool CollectVision { get; set; } = true;
+    /// <summary>通过 Steam 启动时, 把数据同步到 Steam 云 (VPet 自己存档用的同一套云存储)</summary>
+    [JsonPropertyName("steam_sync")] public bool SteamSync { get; set; } = true;
     /// <summary>把数据目录当 git 仓库, 定期自动 commit + push (仅限私有仓库)</summary>
     [JsonPropertyName("git_sync")] public bool GitSync { get; set; } = false;
+    /// <summary>自动同步的间隔 (小时), Steam 云和 git 共用</summary>
     [JsonPropertyName("git_sync_hours")] public int GitSyncHours { get; set; } = 6;
     /// <summary>已经提示过"开始后台采集"了</summary>
     [JsonPropertyName("collect_notice_shown")] public bool CollectNoticeShown { get; set; } = false;

@@ -15,6 +15,7 @@ public class AiSettingsWindow : Window
     private readonly CheckBox dailyConfirm = new() { Content = "下班前 10 分钟弹出日报确认" };
     private readonly CheckBox collectActivity = new() { Content = "记录窗口活动并总结" };
     private readonly CheckBox collectVision = new() { Content = "定期看一眼屏幕并描述" };
+    private readonly CheckBox steamSync = new() { Content = "同步到 Steam 云（通过 Steam 启动时）" };
     private readonly CheckBox gitSync = new() { Content = "自动同步到 git（需私有仓库）" };
     private readonly TextBox dataDir = new(), gitHours = new();
     private readonly TextBox background = new()
@@ -41,6 +42,7 @@ public class AiSettingsWindow : Window
         dailyConfirm.IsChecked = cfg.DailyConfirm;
         collectActivity.IsChecked = cfg.CollectActivity;
         collectVision.IsChecked = cfg.CollectVision;
+        steamSync.IsChecked = cfg.SteamSync;
         gitSync.IsChecked = cfg.GitSync;
         dataDir.Text = cfg.DataDir;
         dataDir.ToolTip = "留空 = " + DataPaths.DefaultRoot;
@@ -62,12 +64,13 @@ public class AiSettingsWindow : Window
         SettingsWindow.AddRow(grid, "", collectActivity);
         SettingsWindow.AddRow(grid, "", collectVision);
         SettingsWindow.AddRow(grid, "数据目录 (留空=默认)", dataDir);
+        SettingsWindow.AddRow(grid, "", steamSync);
         SettingsWindow.AddRow(grid, "", gitSync);
         SettingsWindow.AddRow(grid, "同步间隔 (小时)", gitHours);
 
         var tip = new TextBlock
         {
-            Text = "Key 只保存在本机 %AppData%\\VPet-WorkingPet\\ai_config.json，不会被同步。开启采集后，窗口标题会定期发送到上面配置的接口做总结，截图会上传到接口做描述（图片不保存，只存一句话）。修改数据目录需要重启游戏生效；开启 git 同步前请先把数据目录变成私有仓库的本地副本。",
+            Text = "Key 只保存在本机 %AppData%\\VPet-WorkingPet\\ai_config.json，不会被同步。开启采集后，窗口标题会定期发送到上面配置的接口做总结，截图会上传到接口做描述（图片不保存，只存一句话）。修改数据目录需要重启游戏生效；Steam 云同步用的是游戏自带的云存储（要求这台电脑的 Steam 里开启了该游戏的云存档）；git 同步要求数据目录是私有仓库的本地副本。",
             TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 8, 0, 0),
         };
         Grid.SetRow(tip, grid.RowDefinitions.Count);
@@ -122,6 +125,7 @@ public class AiSettingsWindow : Window
         cfg.DailyConfirm = dailyConfirm.IsChecked == true;
         cfg.CollectActivity = collectActivity.IsChecked == true;
         cfg.CollectVision = collectVision.IsChecked == true;
+        cfg.SteamSync = steamSync.IsChecked == true;
         cfg.GitSync = gitSync.IsChecked == true;
         cfg.DataDir = dataDir.Text.Trim();
     }

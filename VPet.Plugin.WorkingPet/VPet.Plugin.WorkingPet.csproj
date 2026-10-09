@@ -10,6 +10,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <!-- 只用于编译 (和游戏同版本); 运行时使用游戏进程里已加载的那份, 所以不把它复制进插件目录 -->
+    <PackageReference Include="Facepunch.Steamworks" Version="2.3.3" ExcludeAssets="runtime" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\VPet-Simulator.Windows.Interface\VPet-Simulator.Windows.Interface.csproj" />
   </ItemGroup>
   <!-- 构建后自动组装成可直接放进游戏 mod 目录的结构: bin\<配置>\mod\WorkingPet\{info.lps, plugin\*.dll} -->

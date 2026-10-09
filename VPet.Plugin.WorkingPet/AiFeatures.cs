@@ -18,6 +18,7 @@ public class AiFeatures
     private readonly Func<WorkLogStore> getStore;
     private readonly ActivityCollector collector;
     private readonly GitSync git = new();
+    private readonly SteamCloudSync steam;
     private DispatcherTimer? gitTimer;
     private DateTime lastSyncNotice = DateTime.MinValue;
     // 同一天同一事件只提醒一次 (key = 日期 + 事件名)
@@ -38,7 +39,11 @@ public class AiFeatures
         Config = config;
         Activity = new ActivityStore(() => DataPaths.Root(Config));
         collector = new ActivityCollector(Config, Activity, mw.Dispatcher);
+        steam = new SteamCloudSync(() => DataPaths.Root(Config), () => DataPaths.WorkLog(Config), path => Store.ImportFrom(path));
     }
+
+    private bool SteamSyncEnabled => Config.SteamSync && mw.IsSteamUser;
+    private bool AnySyncEnabled => SteamSyncEnabled || Config.GitSync;
 
     public void Start()
     {
@@ -51,11 +56,11 @@ public class AiFeatures
             try { Config.Save(); } catch (Exception) { }
             Say("我开始在后台记录你的窗口活动，并隔一阵子看一眼屏幕、用一句话记下你在做什么（只存文字，不存图片）。数据在「" + DataPaths.Root(Config) + "」，在「AI设置」里可以关闭。");
         }
-        // 启动 3 分钟后先同步一次, 把别的电脑上的新数据拉下来
+        // 启动 2 分钟后先同步一次, 把别的电脑上的新数据拉下来
         _ = Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromMinutes(3));
-            if (Config.GitSync) await AutoSyncAsync();
+            await Task.Delay(TimeSpan.FromMinutes(2));
+            if (AnySyncEnabled) await AutoSyncAsync();
         });
     }
 
@@ -63,6 +68,12 @@ public class AiFeatures
     {
         collector.Stop();
         gitTimer?.Stop();
+        // 退出游戏前把 Steam 云传一遍 (Steam 在进程退出后再把本地缓存上传到服务器), 最多等 10 秒
+        if (SteamSyncEnabled)
+        {
+            try { steam.SyncAsync().Wait(TimeSpan.FromSeconds(10)); }
+            catch (Exception e) { DebugLog.Write("退出时同步 Steam 云失败: " + e.Message); }
+        }
     }
 
     private WorkLogStore Store => getStore();
@@ -281,7 +292,7 @@ public class AiFeatures
     {
         gitTimer?.Stop();
         gitTimer = null;
-        if (!Config.GitSync) return;
+        if (!AnySyncEnabled) return;
         gitTimer = new DispatcherTimer(DispatcherPriority.Normal, mw.Dispatcher)
         {
             Interval = TimeSpan.FromHours(Math.Max(1, Config.GitSyncHours)),
@@ -290,10 +301,31 @@ public class AiFeatures
         gitTimer.Start();
     }
 
+    /// <summary>依次跑所有已开启的同步 (Steam 云 → git), 汇总结果</summary>
+    private async Task<SyncResult> RunSyncsAsync()
+    {
+        var parts = new List<string>();
+        bool ok = true;
+        if (SteamSyncEnabled)
+        {
+            var r = await steam.SyncAsync();
+            DebugLog.Write($"Steam 云同步: ok={r.Ok} {r.Message}");
+            ok &= r.Ok;
+            parts.Add("Steam云：" + r.Message);
+        }
+        if (Config.GitSync)
+        {
+            var r = await git.SyncAsync(DataPaths.Root(Config));
+            ok &= r.Ok;
+            parts.Add("git：" + r.Message);
+        }
+        return new SyncResult(ok, parts.Count > 0 ? string.Join("；", parts) : "没有开启任何同步");
+    }
+
     /// <summary>后台定时同步: 成功不打扰; 失败最多每 12 小时提醒一次, 完整原因写进 debug.log</summary>
     private async Task AutoSyncAsync()
     {
-        var result = await git.SyncAsync(DataPaths.Root(Config));
+        var result = await RunSyncsAsync();
         DebugLog.Write($"自动同步: ok={result.Ok} {result.Message}");
         if (result.Ok || DateTime.Now - lastSyncNotice < TimeSpan.FromHours(12)) return;
         lastSyncNotice = DateTime.Now;
@@ -303,15 +335,15 @@ public class AiFeatures
     /// <summary>菜单里的"立即同步数据": 无论成败都告诉你结果</summary>
     public void SyncNow()
     {
-        if (!Config.GitSync)
+        if (!AnySyncEnabled)
         {
-            Say("还没开启数据同步，请在「AI设置」里勾选「同步到 git」并确认数据目录是私有仓库");
+            Say("还没有可用的同步方式：Steam 云需要通过 Steam 启动游戏；git 需要在「AI设置」里勾选并把数据目录设成私有仓库");
             return;
         }
         Say("正在同步数据…");
         _ = Task.Run(async () =>
         {
-            var result = await git.SyncAsync(DataPaths.Root(Config));
+            var result = await RunSyncsAsync();
             DebugLog.Write($"手动同步: ok={result.Ok} {result.Message}");
             UI(() => Say(result.Ok ? "数据已同步 ✓" : "数据同步失败：" + result.Message));
         });

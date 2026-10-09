@@ -51,6 +51,16 @@ public class ActivityStore
 
     public ActivityStore(Func<string> root) => this.root = root;
 
+    /// <summary>在和采集线程相同的锁下执行 (读取/合并整份文件时用, 避免和追加写入交错)</summary>
+    public static void Locked(Action action)
+    {
+        lock (Gate) action();
+    }
+
+    /// <summary>应用时长文件按电脑分开存 (文件名带电脑名), 多台电脑同步时互不覆盖, 读取时再相加</summary>
+    private static readonly string MachineId =
+        new string(Environment.MachineName.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
+
     private string File_(string sub, DateTime day, string ext) =>
         Path.Combine(root(), sub, $"{WorkLogStore.DayKey(day)}.{ext}");
 
@@ -72,7 +82,7 @@ public class ActivityStore
 
     public void WriteUsage(DateTime day, Dictionary<string, double> usage)
     {
-        var path = File_("apps", day, "json");
+        var path = File_("apps", day, MachineId + ".json");
         lock (Gate)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -90,9 +100,10 @@ public class ActivityStore
     public List<ActivityEntry> ReadActivity(DateTime day) => ReadJsonl<ActivityEntry>(File_("activity", day, "jsonl"));
     public List<VisionEntry> ReadVision(DateTime day) => ReadJsonl<VisionEntry>(File_("vision", day, "jsonl"));
 
+    /// <summary>这台电脑当天的应用时长 (重启游戏时接着累计用)</summary>
     public Dictionary<string, double> ReadUsage(DateTime day)
     {
-        var path = File_("apps", day, "json");
+        var path = File_("apps", day, MachineId + ".json");
         try
         {
             lock (Gate)
@@ -108,9 +119,32 @@ public class ActivityStore
         return new();
     }
 
+    /// <summary>当天所有电脑的应用时长之和</summary>
+    public Dictionary<string, double> ReadAllUsage(DateTime day)
+    {
+        var total = new Dictionary<string, double>();
+        var dir = Path.Combine(root(), "apps");
+        if (!Directory.Exists(dir)) return total;
+        foreach (var file in Directory.EnumerateFiles(dir, WorkLogStore.DayKey(day) + "*.json"))
+        {
+            try
+            {
+                Dictionary<string, double>? one;
+                lock (Gate) one = JsonSerializer.Deserialize<Dictionary<string, double>>(File.ReadAllText(file), Options);
+                if (one == null) continue;
+                foreach (var (app, sec) in one) total[app] = total.GetValueOrDefault(app) + sec;
+            }
+            catch (Exception e) when (e is JsonException or IOException)
+            {
+                DebugLog.Write("读取应用时长失败: " + e.Message);
+            }
+        }
+        return total;
+    }
+
     public DaySnapshot Snapshot(DateTime day) => new(
         ReadActivity(day), ReadVision(day), ReadSamples(day),
-        ReadUsage(day).OrderByDescending(kv => kv.Value).ToList());
+        ReadAllUsage(day).OrderByDescending(kv => kv.Value).ToList());
 
     /// <summary>某天的活动摘要 (去掉空的, 连续重复的合并), 供周报给"没写日报的那天"兜底</summary>
     public List<string> DaySummaries(DateTime day)
