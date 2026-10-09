@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using VPet_Simulator.Core;
 using VPet_Simulator.Windows.Interface;
-using static VPet_Simulator.Core.GraphHelper;
 using static VPet_Simulator.Core.GraphInfo;
 
 namespace VPet.Plugin.WorkingPet;
@@ -11,11 +10,10 @@ namespace VPet.Plugin.WorkingPet;
 /// <summary>设置窗口用来预览下班流程/列出可选玩耍项目的回调</summary>
 public class OffWorkHooks
 {
-    public Func<IReadOnlyList<string>> PlayNames { get; init; } = () => Array.Empty<string>();
-    /// <summary>参数: 下班动作, 玩耍项目名, 跑到中央的参数</summary>
-    public Action<string, string, RunOptions> PreviewFinal { get; init; } = (_, _, _) => { };
-    /// <summary>参数: 预备动作, 下班动作, 玩耍项目名, 跑到中央的参数</summary>
-    public Action<string, string, string, RunOptions> PreviewSequence { get; init; } = (_, _, _, _) => { };
+    /// <summary>参数: 下班动作, 跑到中央的参数</summary>
+    public Action<string, RunOptions> PreviewFinal { get; init; } = (_, _) => { };
+    /// <summary>参数: 预备动作, 下班动作, 跑到中央的参数</summary>
+    public Action<string, string, RunOptions> PreviewSequence { get; init; } = (_, _, _) => { };
 }
 
 /// <summary>
@@ -63,8 +61,7 @@ public class OffWorkController
 
     public OffWorkHooks CreateHooks() => new()
     {
-        PlayNames = AvailablePlayNames,
-        PreviewFinal = (action, play, ro) => { DebugLog.Write($"预览(只看下班动作) action={action}"); Final(action, play, FinalText, ro, diag: true); },
+        PreviewFinal = (action, ro) => { DebugLog.Write($"预览(只看下班动作) action={action}"); Final(action, FinalText, ro); },
         PreviewSequence = PreviewSequence,
     };
 
@@ -104,7 +101,7 @@ public class OffWorkController
             if (remaining <= 0 && remaining > -300)
             {
                 finished = true;
-                Final(settings.OffWorkAction, settings.OffWorkPlay, FinalText, settings.Run);
+                Final(settings.OffWorkAction, FinalText, settings.Run);
             }
             return;
         }
@@ -124,13 +121,13 @@ public class OffWorkController
         else if (remaining > -300)
         {
             finished = true;
-            Final(settings.OffWorkAction, settings.OffWorkPlay, FinalText, settings.Run);
+            Final(settings.OffWorkAction, FinalText, settings.Run);
         }
     }
 
     // ── 预览 (立刻走一遍, 不影响真实日程) ─────────────────────────
 
-    private void PreviewSequence(string pre, string action, string play, RunOptions ro)
+    private void PreviewSequence(string pre, string action, RunOptions ro)
     {
         DebugLog.Write($"预览(完整流程) pre={pre} action={action}");
         previewTimer?.Stop();
@@ -150,7 +147,7 @@ public class OffWorkController
             }
             pt.Stop();
             previewTimer = null;
-            Final(action, play, FinalText, ro, diag: true);
+            Final(action, FinalText, ro);
         };
         pt.Start();
     }
@@ -202,8 +199,8 @@ public class OffWorkController
         return true;
     }
 
-    /// <summary>第二段 (到点): 气泡 + 动作. 玩耍项目不可用时退回"假装逃跑"</summary>
-    private void Final(string action, string playWork, string text, RunOptions ro, bool diag = false)
+    /// <summary>第二段 (到点): 气泡 + 动作. 跑到中央失败时退回"假装逃跑"</summary>
+    private void Final(string action, string text, RunOptions ro)
     {
         var main = mw.Main;
         // 预备动作还在播的话允许覆盖它; 否则宠物忙(拖拽/工作/睡觉)就只弹气泡
@@ -211,24 +208,18 @@ public class OffWorkController
         preActive = false;
 
         DebugLog.Write($"Final: action={action} canAct={canAct} state={main.State} display={main.DisplayType.Type} press={main.isPress}");
-        if (!canAct && diag)
-            main.Say($"{text}\n[诊断] 宠物当前被判定为忙碌, 不会做动作: 状态={main.State} 动画类型={main.DisplayType.Type} 拖拽={main.isPress}");
         if (action == "say" && canAct)
         {
             main.SayRnd(text, true);
             return;
         }
-        if (canAct || !diag) main.Say(text);
+        main.Say(text);
         if (!canAct) return;
 
         switch (action)
         {
             case "run":
-                if (!StartRun(ro, text, diag))
-                    main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
-                break;
-            case "play":
-                if (!TryStartPlay(playWork))
+                if (!StartRun(ro, text))
                     main.Display(GraphType.Shutdown, AnimatType.Single, main.DisplayToNomal);
                 break;
             case "shutdown":
@@ -242,7 +233,7 @@ public class OffWorkController
 
     // ── 跑到屏幕中央并放大 ─────────────────────────────────────
 
-    private bool StartRun(RunOptions ro, string text, bool diag)
+    private bool StartRun(RunOptions ro, string text)
     {
         if (run.IsActive) return true; // 上一次还没回去, 不重复开始
         bool ok = run.Begin(ro.Scale, ro.Seconds, () =>
@@ -258,8 +249,7 @@ public class OffWorkController
             stayTimer.Start();
         }, out var info);
 
-        // 预览时把诊断信息直接显示在气泡里, 方便对照看到的现象; 失败时总是说明原因
-        if (diag || !ok) mw.Main.Say((ok ? "[诊断] " : "[跑到中央失败, 改用逃跑动画] ") + info);
+        if (!ok) mw.Main.Say("没能跑到屏幕中央（" + info + "），改用逃跑动画");
         return ok;
     }
 
@@ -278,46 +268,6 @@ public class OffWorkController
         if (!run.IsActive) return;
         mw.Main.Say(ro.SleepAfter ? "好的，回去睡觉啦～ 😴" : "好的，回去啦～");
         run.Return(Math.Max(1, ro.Seconds * 0.7), ro.SleepAfter ? () => mw.Main.DisplaySleep(true) : null);
-    }
-
-    // ── 玩耍 (VPet「互动 → 玩耍」里的活动) ──────────────────────────
-
-    /// <summary>当前能玩的玩耍项目: 有动画, 且宠物没生病、等级够 (与游戏自己的检查一致, 避免弹出游戏的报错框)</summary>
-    private bool CanPlay(Work w)
-    {
-        if (string.IsNullOrWhiteSpace(w.Graph)) return false;
-        var save = mw.Core.Save;
-        var ctl = mw.Core.Controller;
-        if (save == null || ctl == null) return false;
-        return !ctl.EnableFunction || (save.Mode != IGameSave.ModeType.Ill && save.Level >= w.LevelLimit);
-    }
-
-    private IReadOnlyList<string> AvailablePlayNames()
-    {
-        try
-        {
-            mw.Main.WorkList(out _, out _, out var plays);
-            return plays.Where(CanPlay).Select(w => w.Name).ToList();
-        }
-        catch (Exception)
-        {
-            return Array.Empty<string>();
-        }
-    }
-
-    private bool TryStartPlay(string name)
-    {
-        try
-        {
-            mw.Main.WorkList(out _, out _, out var plays);
-            var candidates = plays.Where(CanPlay).ToList();
-            var work = candidates.FirstOrDefault(w => w.Name == name) ?? candidates.FirstOrDefault();
-            return work != null && mw.Main.StartWork(work);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
     }
 
     // ── 倒数气泡 + 加班按钮 ─────────────────────────────────────

@@ -7,7 +7,8 @@ namespace VPet.Plugin.WorkingPet;
 
 /// <summary>
 /// WorkingPet 插件入口: 把旧版 Python 桌宠的"打工人"功能移植到 VPet.
-/// 第 1 步: 下班倒计时面板 + 下班提醒. 第 2 步: 工作记录 + 工作日历. 后续 (AI 周报日报 / 采集) 在此基础上扩展.
+/// 面板与下班流程 (PetPanel / OffWorkController) · 工作记录与日历 (WorkLogStore / WorkLogWindow)
+/// · AI 对话/周报/日报 (AiFeatures). 后台采集 (截图/应用时长等) 尚未移植.
 /// </summary>
 public class WorkingPetPlugin : MainPlugin
 {
@@ -47,19 +48,34 @@ public class WorkingPetPlugin : MainPlugin
 
     public override void LoadDIY()
     {
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打工面板 开/关", () =>
+        // 所有功能收进「自定」下的一个子菜单, 避免把自定菜单撑得很长
+        var root = new System.Windows.Controls.MenuItem
+        {
+            Header = "打工宠物",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        void Add(string name, Action action)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = name, HorizontalContentAlignment = HorizontalAlignment.Center };
+            item.Click += (_, _) => action();
+            root.Items.Add(item);
+        }
+        Add("打工面板 开/关", () =>
         {
             settings.ShowPanel = !settings.ShowPanel;
             ApplyPanelVisibility();
         });
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "记录工作", RecordWork);
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "工作日历", OpenCalendar);
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "AI对话", () => ai?.Chat());
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "生成周报", () => ai?.GenerateWeekly());
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "预览日报", () => ai?.DailyConfirm());
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打开钉钉", () => ai?.LaunchDingTalk());
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "AI设置", () => ai?.OpenSettings());
-        MW.Main.ToolBar.AddMenuButton(ToolBar.MenuType.DIY, "打工设置", Setting);
+        Add("记录工作", RecordWork);
+        Add("工作日历", OpenCalendar);
+        Add("AI对话", () => ai?.Chat());
+        Add("生成周报", () => ai?.GenerateWeekly());
+        Add("预览日报", () => ai?.DailyConfirm());
+        Add("打开钉钉", () => ai?.LaunchDingTalk());
+        Add("AI设置", () => ai?.OpenSettings());
+        Add("打工设置", Setting);
+
+        MW.Main.ToolBar.MenuDIY.Items.Add(root);
+        MW.Main.ToolBar.LoadDIY(); // 刷新「自定」菜单的显示
     }
 
     public override void Setting()

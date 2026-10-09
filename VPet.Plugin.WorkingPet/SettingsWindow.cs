@@ -10,9 +10,9 @@ namespace VPet.Plugin.WorkingPet;
 public class SettingsWindow : Window
 {
     private readonly TextBox amStart = new(), amEnd = new(), pmStart = new(), pmEnd = new();
-    private static readonly string[] OffWorkLabels = { "跑到屏幕中央并放大", "玩耍（见下方项目）", "假装逃跑（关机动画）", "睡觉", "说话动画", "只弹气泡" };
+    private static readonly string[] OffWorkLabels = { "跑到屏幕中央并放大", "假装逃跑（关机动画）", "睡觉", "说话动画", "只弹气泡" };
     private static readonly string[] PreLabels = { "思考", "说话表情", "随机待机动作", "无（只倒数）" };
-    private readonly ComboBox offWork = new(), preAction = new(), playWork = new();
+    private readonly ComboBox offWork = new(), preAction = new();
     private readonly TextBox runScale = new(), runSeconds = new(), runStay = new();
     private readonly CheckBox sleepAfter = new() { Content = "跑回去之后直接睡觉" };
     private readonly CheckBox countdown = new() { Content = "下班前 3 秒倒数 3-2-1" };
@@ -44,9 +44,6 @@ public class SettingsWindow : Window
         runScale.Text = settings.RunScale.ToString("0.0#", CultureInfo.InvariantCulture);
         runSeconds.Text = settings.RunSeconds.ToString("0.0#", CultureInfo.InvariantCulture);
         runStay.Text = settings.RunStay.ToString("0", CultureInfo.InvariantCulture);
-        var playNames = offWorkHooks?.PlayNames() ?? Array.Empty<string>();
-        foreach (var n in playNames) playWork.Items.Add(n);
-        playWork.SelectedIndex = Math.Max(0, playNames.ToList().IndexOf(settings.OffWorkPlay));
         offWork.SelectedIndex = Math.Max(0, Array.IndexOf(PluginSettings.OffWorkActions, settings.OffWorkAction));
         opacity.Text = settings.PanelOpacity.ToString("0", CultureInfo.InvariantCulture);
         panelColor.Value = settings.PanelColor;
@@ -65,7 +62,6 @@ public class SettingsWindow : Window
         AddRow(grid, "", countdown);
         AddRow(grid, "倒数期间动作", preAction);
         AddRow(grid, "到点下班时宠物", offWork);
-        AddRow(grid, "玩耍项目", playWork);
         AddRow(grid, "跑到中央·放大倍数", runScale);
         AddRow(grid, "跑到中央·用时(秒)", runSeconds);
         AddRow(grid, "跑到中央·停留(秒)", runStay);
@@ -139,7 +135,6 @@ public class SettingsWindow : Window
             settings.OffWorkAction = PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)];
             settings.PreAction = PluginSettings.PreActions[Math.Max(0, preAction.SelectedIndex)];
             settings.OffWorkCountdown = countdown.IsChecked == true;
-            if (playWork.SelectedItem is string pw) settings.OffWorkPlay = pw;
             settings.RunScale = ro.Scale;
             settings.RunSeconds = ro.Seconds;
             settings.RunStay = ro.StaySeconds;
@@ -157,15 +152,14 @@ public class SettingsWindow : Window
 
         // 预览用的是窗口里当前选的值, 不用先保存
         string Action_() => PluginSettings.OffWorkActions[Math.Max(0, offWork.SelectedIndex)];
-        string Play_() => playWork.SelectedItem as string ?? "";
         var previewFinal = new Button { Content = "预览：只看到点后的下班动作", Margin = new Thickness(16, 0, 16, 6), Padding = new Thickness(0, 6, 0, 6) };
-        previewFinal.Click += (_, _) => { if (TryReadRun(out var r)) offWorkHooks?.PreviewFinal(Action_(), Play_(), r); };
+        previewFinal.Click += (_, _) => { if (TryReadRun(out var r)) offWorkHooks?.PreviewFinal(Action_(), r); };
         previewFinal.IsEnabled = offWorkHooks != null;
         var previewSeq = new Button { Content = "预览：完整流程（3-2-1 + 下班动作）", Margin = new Thickness(16, 0, 16, 6), Padding = new Thickness(0, 6, 0, 6) };
         previewSeq.Click += (_, _) =>
         {
             if (TryReadRun(out var r))
-                offWorkHooks?.PreviewSequence(PluginSettings.PreActions[Math.Max(0, preAction.SelectedIndex)], Action_(), Play_(), r);
+                offWorkHooks?.PreviewSequence(PluginSettings.PreActions[Math.Max(0, preAction.SelectedIndex)], Action_(), r);
         };
         previewSeq.IsEnabled = offWorkHooks != null;
 
