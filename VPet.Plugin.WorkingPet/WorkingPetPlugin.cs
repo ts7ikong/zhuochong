@@ -78,7 +78,6 @@ public class WorkingPetPlugin : MainPlugin
         Add("生成周报", () => ai?.GenerateWeekly());
         Add("预览日报", () => ai?.DailyConfirm());
         Add("打开钉钉", () => ai?.LaunchDingTalk());
-        Add("立即同步数据", () => ai?.SyncNow());
         Add("打开数据文件夹", () => ai?.OpenDataFolder());
         Add("AI设置", () => ai?.OpenSettings());
         Add("打工设置", Setting);

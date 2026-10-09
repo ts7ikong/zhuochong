@@ -15,9 +15,7 @@ public class AiSettingsWindow : Window
     private readonly CheckBox dailyConfirm = new() { Content = "下班前 10 分钟弹出日报确认" };
     private readonly CheckBox collectActivity = new() { Content = "记录窗口活动并总结" };
     private readonly CheckBox collectVision = new() { Content = "定期看一眼屏幕并描述" };
-    private readonly CheckBox steamSync = new() { Content = "同步到 Steam 云（通过 Steam 启动时）" };
-    private readonly CheckBox gitSync = new() { Content = "自动同步到 git（需私有仓库）" };
-    private readonly TextBox dataDir = new(), gitHours = new();
+    private readonly TextBox dataDir = new();
     private readonly TextBox background = new()
     {
         AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -42,11 +40,8 @@ public class AiSettingsWindow : Window
         dailyConfirm.IsChecked = cfg.DailyConfirm;
         collectActivity.IsChecked = cfg.CollectActivity;
         collectVision.IsChecked = cfg.CollectVision;
-        steamSync.IsChecked = cfg.SteamSync;
-        gitSync.IsChecked = cfg.GitSync;
         dataDir.Text = cfg.DataDir;
         dataDir.ToolTip = "留空 = " + DataPaths.DefaultRoot;
-        gitHours.Text = cfg.GitSyncHours.ToString();
         foreach (var d in Days) remindDay.Items.Add(d);
         remindDay.SelectedIndex = Math.Max(0, Math.Min(cfg.RemindDay, 6));
 
@@ -64,13 +59,10 @@ public class AiSettingsWindow : Window
         SettingsWindow.AddRow(grid, "", collectActivity);
         SettingsWindow.AddRow(grid, "", collectVision);
         SettingsWindow.AddRow(grid, "数据目录 (留空=默认)", dataDir);
-        SettingsWindow.AddRow(grid, "", steamSync);
-        SettingsWindow.AddRow(grid, "", gitSync);
-        SettingsWindow.AddRow(grid, "同步间隔 (小时)", gitHours);
 
         var tip = new TextBlock
         {
-            Text = "Key 只保存在本机 %AppData%\\VPet-WorkingPet\\ai_config.json，不会被同步。开启采集后，窗口标题会定期发送到上面配置的接口做总结，截图会上传到接口做描述（图片不保存，只存一句话）。修改数据目录需要重启游戏生效；Steam 云同步用的是游戏自带的云存储（要求这台电脑的 Steam 里开启了该游戏的云存档）；git 同步要求数据目录是私有仓库的本地副本。",
+            Text = "Key 只保存在本机 %AppData%\\VPet-WorkingPet\\ai_config.json，不会被同步。开启采集后，窗口标题会定期发送到上面配置的接口做总结，截图会上传到接口做描述（图片不保存，只存一句话）。修改数据目录需要重启游戏生效；数据都存在本机数据目录里（菜单「打开数据文件夹」），需要换电脑或备份时自己拷贝即可。",
             TextWrapping = TextWrapping.Wrap, FontSize = 11, Foreground = Brushes.Gray, Margin = new Thickness(0, 8, 0, 0),
         };
         Grid.SetRow(tip, grid.RowDefinitions.Count);
@@ -88,13 +80,7 @@ public class AiSettingsWindow : Window
                 Show("周报提醒时间格式不正确，请填 HH:MM，如 11:00", false);
                 return;
             }
-            if (!int.TryParse(gitHours.Text.Trim(), out var hours) || hours < 1 || hours > 168)
-            {
-                Show("同步间隔请填 1 到 168 之间的整数（小时）", false);
-                return;
-            }
             Apply(cfg);
-            cfg.GitSyncHours = hours;
             try { cfg.Save(); }
             catch (Exception e) { Show("保存失败：" + e.Message, false); return; }
             onSaved();
@@ -125,8 +111,6 @@ public class AiSettingsWindow : Window
         cfg.DailyConfirm = dailyConfirm.IsChecked == true;
         cfg.CollectActivity = collectActivity.IsChecked == true;
         cfg.CollectVision = collectVision.IsChecked == true;
-        cfg.SteamSync = steamSync.IsChecked == true;
-        cfg.GitSync = gitSync.IsChecked == true;
         cfg.DataDir = dataDir.Text.Trim();
     }
 

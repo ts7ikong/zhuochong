@@ -51,13 +51,7 @@ public class ActivityStore
 
     public ActivityStore(Func<string> root) => this.root = root;
 
-    /// <summary>在和采集线程相同的锁下执行 (读取/合并整份文件时用, 避免和追加写入交错)</summary>
-    public static void Locked(Action action)
-    {
-        lock (Gate) action();
-    }
-
-    /// <summary>应用时长文件按电脑分开存 (文件名带电脑名), 多台电脑同步时互不覆盖, 读取时再相加</summary>
+    /// <summary>应用时长文件按电脑分开存 (文件名带电脑名), 你手动把多台电脑的数据合并到一起时互不覆盖, 读取时再相加</summary>
     private static readonly string MachineId =
         new string(Environment.MachineName.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
 
