@@ -84,9 +84,17 @@ public class VectorHud : Window, IPetPanel
 
         if (petWindow != null)
         {
+            new AutoHide(petWindow, settings, hide => SetHidden(hide));
             petWindow.LocationChanged += (_, _) => Reposition();
             petWindow.SizeChanged += (_, _) => Reposition();
         }
+    }
+
+    private void SetHidden(bool hide)
+    {
+        Visibility = hide ? Visibility.Hidden : Visibility.Visible;
+        back.Visibility = Visibility;
+        if (!hide) Restack();
     }
 
     // ── 位置 / 缩放 ───────────────────────────────────────────

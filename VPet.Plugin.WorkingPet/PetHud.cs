@@ -101,10 +101,13 @@ public class PetHud : Window, IPetPanel
 
         if (petWindow != null)
         {
+            new AutoHide(petWindow, settings, hide => SetHidden(hide));
             petWindow.LocationChanged += (_, _) => Reposition();
             petWindow.SizeChanged += (_, _) => Reposition();
         }
     }
+
+    private void SetHidden(bool hide) => Visibility = hide ? Visibility.Hidden : Visibility.Visible;
 
     // ── 位置 / 缩放 ───────────────────────────────────────────
 

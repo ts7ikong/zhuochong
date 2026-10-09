@@ -80,6 +80,7 @@ public class PetPanel : Window, IPetPanel
         // 宠物被拖动/缩放时立即跟上
         if (petWindow != null)
         {
+            new AutoHide(petWindow, settings, hide => { if (settings.FollowPet || !hide) Visibility = hide ? Visibility.Hidden : Visibility.Visible; });
             petWindow.LocationChanged += (_, _) => Follow();
             petWindow.SizeChanged += (_, _) => Follow();
         }
