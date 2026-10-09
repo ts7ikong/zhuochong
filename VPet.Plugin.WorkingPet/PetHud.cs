@@ -101,9 +101,17 @@ public class PetHud : Window, IPetPanel
 
         if (petWindow != null)
         {
-            new AutoHide(petWindow, settings, hide => SetHidden(hide));
-            petWindow.LocationChanged += (_, _) => Reposition();
-            petWindow.SizeChanged += (_, _) => Reposition();
+            var autoHide = new AutoHide(petWindow, settings, hide => SetHidden(hide));
+            EventHandler onMoved = (_, _) => Reposition();
+            SizeChangedEventHandler onSize = (_, _) => Reposition();
+            petWindow.LocationChanged += onMoved;
+            petWindow.SizeChanged += onSize;
+            Closed += (_, _) =>
+            {
+                autoHide.Dispose();
+                petWindow.LocationChanged -= onMoved;
+                petWindow.SizeChanged -= onSize;
+            };
         }
     }
 

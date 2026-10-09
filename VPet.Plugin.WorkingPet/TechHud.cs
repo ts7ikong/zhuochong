@@ -101,9 +101,17 @@ public class TechHud : Window, IPetPanel
 
         if (petWindow != null)
         {
-            new AutoHide(petWindow, settings, hide => SetHidden(hide));
-            petWindow.LocationChanged += (_, _) => Reposition();
-            petWindow.SizeChanged += (_, _) => Reposition();
+            var autoHide = new AutoHide(petWindow, settings, hide => SetHidden(hide));
+            EventHandler onMoved = (_, _) => Reposition();
+            SizeChangedEventHandler onSize = (_, _) => Reposition();
+            petWindow.LocationChanged += onMoved;
+            petWindow.SizeChanged += onSize;
+            Closed += (_, _) =>
+            {
+                autoHide.Dispose();
+                petWindow.LocationChanged -= onMoved;
+                petWindow.SizeChanged -= onSize;
+            };
         }
     }
 
@@ -353,7 +361,7 @@ public class TechHud : Window, IPetPanel
         PlaceCenter(tStatus, sl + 171 * sk, st + 33 * sk, 19);
 
         // 百分比框 (环右侧, 压在深色圆盘的边上)
-        var (pl, pt, pk) = AddSprite("percent", 965, 515, 0.62);
+        var (pl, pt, pk) = AddSprite("percent", 985, 515, 0.62);
         tPercent = Text("0%", 40, DisplayFont, FontWeights.Normal, Brushes.White, 118);
         tPercent.Effect = textGlow;
         PlaceCenter(tPercent, pl + 125 * pk, pt + 87 * pk, 40);
