@@ -69,7 +69,11 @@ public class Chatter
         ScheduleNext(TimeSpan.FromMinutes(15)); // 刚启动先安静一阵
     }
 
-    public void Start() => timer.Start();
+    public void Start()
+    {
+        timer.Start();
+        DebugLog.Write($"主动说话: 已启动 (开关={(settings.ProactiveTalk ? "开" : "关")}), 最早 {nextChat:HH:mm} 开口");
+    }
     public void Stop() => timer.Stop();
 
     private void ScheduleNext(TimeSpan? after = null) =>
@@ -103,6 +107,7 @@ public class Chatter
         if (!active || now < nextChat) return;
 
         bool needRest = companion.Judgement == "work" && now - companion.JudgementSince >= RestAfter;
+        DebugLog.Write($"主动说话: 开始生成 (久坐提醒={needRest}, AI={(ai.Config.IsConfigured ? "是" : "否")})");
         _ = ChatAsync(needRest, now);
     }
 
@@ -140,6 +145,7 @@ public class Chatter
             await mw.Dispatcher.InvokeAsync(() =>
             {
                 if (CanSpeak()) Speak(line);
+                else DebugLog.Write("主动说话: 生成完成但此刻不方便说, 放弃: " + line);
             });
         }
         catch (Exception e)

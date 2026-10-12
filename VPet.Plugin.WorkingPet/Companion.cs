@@ -35,6 +35,8 @@ public class Companion
 
     private string judgement = "";      // 防抖后的结论: "" / "work" / "slack"
     private DateTime judgementSince = DateTime.MinValue; // 当前结论从什么时候开始
+    private DateTime lastClassified = DateTime.MinValue; // 最近一次收到 AI 判断的时间 (你离开电脑时不会再有新判断)
+    private static readonly TimeSpan JudgementTtl = TimeSpan.FromMinutes(12);
     private string? owned;              // 陪伴模式启动的活动名 (null = 当前没有我们的活动)
     private string? lastPicked;
     private bool ownsSleep;             // 睡眠是陪伴模式让它睡的
@@ -82,6 +84,7 @@ public class Companion
     /// <summary>AI 给出新的判断 (必须在 UI 线程调用)</summary>
     public void OnClassified(string state)
     {
+        lastClassifiedSeen();
         if (state != "work" && state != "slack") return; // unknown 不改变现状
         recent.Enqueue(state);
         while (recent.Count > 2) recent.Dequeue();
@@ -103,6 +106,23 @@ public class Companion
         Tick();
     }
 
+    private void lastClassifiedSeen() => lastClassified = DateTime.Now;
+
+    /// <summary>
+    /// 你离开电脑 (空闲超过 5 分钟采集器就不再采样) 就不会有新的判断, 旧结论不能一直有效,
+    /// 否则宠物会在你不在的时候整夜整天地"陪你工作/玩耍". 超过 12 分钟没有新判断就清空结论并停掉自己启动的活动.
+    /// </summary>
+    private void ExpireJudgement(DateTime now)
+    {
+        if (judgement == "" || now - lastClassified < JudgementTtl) return;
+        DebugLog.Write("陪伴: 很久没有新的判断 (你可能离开了), 清空结论");
+        judgement = "";
+        judgementSince = DateTime.MinValue;
+        slackSince = DateTime.MinValue;
+        recent.Clear();
+        if (owned != null) StopOwned();
+    }
+
     // ── 主循环 ───────────────────────────────────────────────
 
     private void Tick()
@@ -122,6 +142,7 @@ public class Companion
         if (!settings.Companion) return;
         var main = mw.Main;
         var now = DateTime.Now;
+        ExpireJudgement(now);
 
         // 记录睡眠开始时间, 用来区分"昨晚下班睡的"和"你白天自己让它睡的"
         if (main.State == VPet_Simulator.Core.Main.WorkingState.Sleep)
